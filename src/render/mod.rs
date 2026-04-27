@@ -41,7 +41,14 @@ fn render_facts(cfg: &Config, f: &Facts) -> Vec<String> {
         out.push("─".repeat(20).bright_black().to_string());
     }
     if let Some(os) = &f.os {
-        out.push(label("OS", &os.pretty_name));
+        let mut v = os.pretty_name.clone();
+        if let Some(ver) = &os.version {
+            if !v.contains(ver) { v.push_str(&format!(" ({})", ver)); }
+        }
+        if !os.id.is_empty() && !v.to_ascii_lowercase().contains(&os.id.to_ascii_lowercase()) {
+            v.push_str(&format!(" [{}]", os.id));
+        }
+        out.push(label("OS", &v));
     }
     if let Some(k) = &f.kernel {
         let arch = f.arch.as_deref().unwrap_or("");
@@ -99,7 +106,15 @@ fn render_facts(cfg: &Config, f: &Facts) -> Vec<String> {
     }
     if !f.listening_ports.is_empty() {
         let s: Vec<String> = f.listening_ports.iter()
-            .map(|l| format!("{}:{}", l.proto, l.port)).collect();
+            .map(|l| {
+                let bind = match l.addr {
+                    std::net::IpAddr::V4(v4) if v4.is_unspecified() => "*".to_string(),
+                    std::net::IpAddr::V6(v6) if v6.is_unspecified() => "*".to_string(),
+                    addr => addr.to_string(),
+                };
+                format!("{}:{}", bind, l.port)
+            })
+            .collect();
         out.push(label("Listening", &s.join(" ")));
     }
     if !f.sessions.is_empty() {
