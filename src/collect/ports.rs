@@ -4,6 +4,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 #[derive(Debug, Clone)]
 pub struct Listener {
+    #[allow(dead_code)] // retained for future UDP expansion + dedupe key
     pub proto: &'static str,
     pub addr: IpAddr,
     pub port: u16,
