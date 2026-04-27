@@ -1,0 +1,35 @@
+[package]
+name = "neosnatch"
+version = "0.1.0"
+edition = "2021"
+description = "Login-banner sysadmin stats for Linux terminals"
+license = "MIT"
+
+[[bin]]
+name = "neosnatch"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+owo-colors = "4"
+nix = { version = "0.29", features = ["fs", "user", "net", "socket"] }
+libc = "0.2"
+rustix = { version = "0.38", features = ["fs", "system"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "fs", "net"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+zbus = { version = "4", default-features = false, features = ["tokio"] }
+terminal_size = "0.4"
+once_cell = "1"
+dirs = "5"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+opt-level = 3

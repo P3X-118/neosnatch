@@ -1,0 +1,36 @@
+[logo]
+# path = "/etc/neosnatch/logo.png"
+width = 24
+height = 12
+symbols = "block"
+
+[network]
+public_ip_url = "https://ip.sgc.ai"
+timeout_ms = 1500
+
+[thresholds]
+disk_warn = 80
+disk_crit = 92
+mem_warn = 80
+mem_crit = 92
+load_warn = 1.0
+load_crit = 2.0
+
+[show]
+host = true
+os = true
+kernel = true
+uptime = true
+load = true
+cpu = true
+memory = true
+swap = true
+disk = true
+network = true
+public_ip = true
+sessions = true
+last_login = true
+failed_units = true
+listening_ports = true
+advisories = true
+packages = false
