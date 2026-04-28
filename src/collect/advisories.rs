@@ -42,42 +42,27 @@ async fn which(bin: &str) -> Option<String> {
 }
 
 async fn debian() -> Option<Advisories> {
-    // Use the cached file populated by unattended-upgrades / update-notifier.
-    // No network calls; reflects what apt last saw.
+    // Read-only path: only consume the file maintained by unattended-upgrades /
+    // update-notifier. NEVER fork `apt-get -s upgrade` from the login path —
+    // that's a 7+ second simulation. If the file is stale or missing, return
+    // None and let the renderer indicate "no data" rather than blocking login.
     let path = "/var/lib/update-notifier/updates-available";
-    if let Ok(raw) = tokio::fs::read_to_string(path).await {
-        // Format: "N updates can be applied immediately.\nM of these updates are standard security updates."
-        let mut total = 0u32;
-        let mut sec = 0u32;
-        for line in raw.lines() {
-            if let Some(n) = first_number(line) {
-                if line.contains("security") { sec = n; }
-                else if total == 0 { total = n; }
-            }
-        }
-        if total > 0 || sec > 0 {
-            return Some(Advisories {
-                source: "apt".into(),
-                critical: 0,
-                high: sec,
-                total: total.max(sec),
-            });
-        }
-    }
-    // Fallback: parse `apt-get -s -o Debug::NoLocking=true upgrade`
-    let out = Command::new("apt-get")
-        .args(["-s", "-o", "Debug::NoLocking=true", "upgrade"])
-        .output().await.ok()?;
-    let s = String::from_utf8_lossy(&out.stdout);
+    let raw = tokio::fs::read_to_string(path).await.ok()?;
     let mut total = 0u32;
     let mut sec = 0u32;
-    for line in s.lines() {
-        if line.starts_with("Inst ") {
-            total += 1;
-            if line.contains("-security") { sec += 1; }
+    for line in raw.lines() {
+        if let Some(n) = first_number(line) {
+            if line.contains("security") { sec = n; }
+            else if total == 0 { total = n; }
         }
     }
-    Some(Advisories { source: "apt".into(), critical: 0, high: sec, total })
+    if total == 0 && sec == 0 { return None; }
+    Some(Advisories {
+        source: "apt".into(),
+        critical: 0,
+        high: sec,
+        total: total.max(sec),
+    })
 }
 
 async fn dnf() -> Option<Advisories> {

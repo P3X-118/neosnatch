@@ -40,7 +40,6 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     let want_net = !args.offline;
     let s = &cfg.show;
 
-    // Synchronous (cheap, /proc-based)
     let host = hostname();
     let user = current_user();
     let os = if s.os { os::detect().ok() } else { None };
@@ -56,7 +55,6 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     let listening_ports = if s.listening_ports { ports::list().unwrap_or_default() } else { vec![] };
     let packages = if s.packages { packages::count().await } else { None };
 
-    // Concurrent async (D-Bus + HTTP)
     let failed_fut = async {
         if s.failed_units { systemd::failed_units().await.unwrap_or_default() } else { vec![] }
     };

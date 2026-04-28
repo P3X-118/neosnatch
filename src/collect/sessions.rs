@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Local, TimeZone};
 use std::ffi::CStr;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom};
 use std::mem::size_of;
 
 #[derive(Debug, Clone)]
@@ -97,13 +97,31 @@ pub fn active() -> Result<Vec<Session>> {
 }
 
 pub fn last() -> Result<Option<Session>> {
-    let recs = match read_records("/var/log/wtmp") {
-        Ok(r) => r,
+    // wtmp can be many MB; read backward in fixed-size chunks instead of
+    // slurping the whole file. Stop at the first USER_PROCESS record.
+    let mut f = match File::open("/var/log/wtmp") {
+        Ok(f) => f,
         Err(_) => return Ok(None),
     };
-    Ok(recs.iter().rev()
-        .find(|r| r.ut_type == USER_PROCESS && !cstr(&r.ut_user).is_empty())
-        .map(record_to_session))
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    if len < UTMPX_SIZE as u64 { return Ok(None); }
+
+    let mut offset = (len / UTMPX_SIZE as u64) * UTMPX_SIZE as u64;
+    let mut buf = [0u8; UTMPX_SIZE];
+    while offset >= UTMPX_SIZE as u64 {
+        offset -= UTMPX_SIZE as u64;
+        f.seek(SeekFrom::Start(offset))?;
+        f.read_exact(&mut buf)?;
+        let mut rec: Utmpx = unsafe { std::mem::zeroed() };
+        let dst = unsafe {
+            std::slice::from_raw_parts_mut(&mut rec as *mut _ as *mut u8, UTMPX_SIZE)
+        };
+        dst.copy_from_slice(&buf);
+        if rec.ut_type == USER_PROCESS && !cstr(&rec.ut_user).is_empty() {
+            return Ok(Some(record_to_session(&rec)));
+        }
+    }
+    Ok(None)
 }
 
 #[allow(dead_code)]
