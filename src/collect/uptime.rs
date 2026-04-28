@@ -14,7 +14,7 @@ impl Uptime {
         match (d, h, m) {
             (0, 0, m) => format!("{m}m"),
             (0, h, m) => format!("{h}h {m}m"),
-            (d, h, _) => format!("{d}d {h}h"),
+            (d, h, m) => format!("{d}d {h}h {m}m"),
         }
     }
 }

@@ -54,8 +54,24 @@ fn render_facts(cfg: &Config, f: &Facts) -> Vec<String> {
         let arch = f.arch.as_deref().unwrap_or("");
         out.push(label("Kernel", &format!("{k} {arch}").trim().to_string()));
     }
+    if let Some(kb) = &f.kernel_build {
+        out.push(label("Kernel build", kb));
+    }
+    if let Some(host) = &f.host_info {
+        let model = host.model.as_deref().unwrap_or("unknown");
+        let vendor = host.vendor.as_deref().unwrap_or("");
+        let line = if vendor.is_empty() { model.to_string() } else { format!("{vendor} {model}") };
+        out.push(label("Hardware", &format!("{line} ({})", host.virt)));
+    }
     if let Some(u) = &f.uptime {
         out.push(label("Uptime", &u.pretty()));
+    }
+    if let Some(s) = &f.shell {
+        let v = match &s.version {
+            Some(v) => format!("{} {}", s.name, v),
+            None => s.name.clone(),
+        };
+        out.push(label("Shell", &v));
     }
     if let Some(l) = &f.load {
         let v = format!("{:.2} {:.2} {:.2}", l.one, l.five, l.fifteen);
@@ -63,6 +79,9 @@ fn render_facts(cfg: &Config, f: &Facts) -> Vec<String> {
     }
     if let Some(c) = &f.cpu {
         out.push(label("CPU", &format!("{} ({}c)", c.model, c.cores)));
+    }
+    for g in &f.gpus {
+        out.push(label("GPU", &format!("{} {}", g.vendor, g.model)));
     }
     if let Some(m) = &f.mem {
         let pct = m.used_pct();

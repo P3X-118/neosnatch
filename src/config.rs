@@ -58,6 +58,10 @@ pub struct Show {
     pub listening_ports: bool,
     pub advisories: bool,
     pub packages: bool,
+    pub model: bool,
+    pub virt: bool,
+    pub gpu: bool,
+    pub shell: bool,
 }
 
 impl Default for Config {
@@ -123,7 +127,11 @@ impl Default for Show {
             failed_units: true,
             listening_ports: true,
             advisories: true,
-            packages: false,
+            packages: true,
+            model: true,
+            virt: true,
+            gpu: true,
+            shell: true,
         }
     }
 }

@@ -10,6 +10,10 @@ pub mod ports;
 pub mod advisories;
 pub mod public_ip;
 pub mod packages;
+pub mod host;
+pub mod gpu;
+pub mod shell;
+pub mod demo;
 
 use crate::cli::Args;
 use crate::config::Config;
@@ -20,6 +24,7 @@ pub struct Facts {
     pub user: Option<String>,
     pub os: Option<os::OsInfo>,
     pub kernel: Option<String>,
+    pub kernel_build: Option<String>,
     pub arch: Option<String>,
     pub uptime: Option<uptime::Uptime>,
     pub load: Option<cpu::Load>,
@@ -34,16 +39,23 @@ pub struct Facts {
     pub listening_ports: Vec<ports::Listener>,
     pub advisories: Option<advisories::Advisories>,
     pub packages: Option<u64>,
+    pub host_info: Option<host::HostInfo>,
+    pub gpus: Vec<gpu::Gpu>,
+    pub shell: Option<shell::ShellInfo>,
 }
 
 pub async fn gather(cfg: &Config, args: &Args) -> Facts {
+    if args.demo { return demo::fixture(); }
     let want_net = !args.offline;
     let s = &cfg.show;
 
     let host = hostname();
     let user = current_user();
     let os = if s.os { os::detect().ok() } else { None };
-    let (kernel, arch) = uname_kernel_arch();
+    let (kernel, kernel_build, arch) = uname_full();
+    let host_info = if s.model || s.virt { Some(host::detect()) } else { None };
+    let gpus = if s.gpu { gpu::list() } else { vec![] };
+    let shell_info = if s.shell { shell::detect() } else { None };
     let uptime = if s.uptime { uptime::read().ok() } else { None };
     let load = if s.load { cpu::load().ok() } else { None };
     let cpu = if s.cpu { cpu::info().ok() } else { None };
@@ -75,6 +87,7 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
         user,
         os,
         kernel,
+        kernel_build,
         arch,
         uptime,
         load,
@@ -89,6 +102,9 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
         listening_ports,
         advisories,
         packages,
+        host_info,
+        gpus,
+        shell: shell_info,
     }
 }
 
@@ -101,9 +117,10 @@ fn current_user() -> Option<String> {
     nix::unistd::User::from_uid(uid).ok().flatten().map(|u| u.name)
 }
 
-fn uname_kernel_arch() -> (Option<String>, Option<String>) {
+fn uname_full() -> (Option<String>, Option<String>, Option<String>) {
     let u = rustix::system::uname();
     let kernel = u.release().to_str().ok().map(str::to_owned);
+    let kernel_build = u.version().to_str().ok().map(str::to_owned);
     let arch = u.machine().to_str().ok().map(str::to_owned);
-    (kernel, arch)
+    (kernel, kernel_build, arch)
 }

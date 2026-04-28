@@ -31,4 +31,8 @@ pub struct Args {
     /// Print computed config and exit
     #[arg(long)]
     pub print_config: bool,
+
+    /// Render with synthetic facts (for visual iteration)
+    #[arg(long)]
+    pub demo: bool,
 }
