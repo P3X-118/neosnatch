@@ -8,6 +8,7 @@ use std::mem::size_of;
 #[derive(Debug, Clone)]
 pub struct Session {
     pub user: String,
+    #[allow(dead_code)] // tty/pts label; surfaced when verbose session listing is enabled
     pub line: String,
     pub host: Option<String>,
     pub when: Option<String>,

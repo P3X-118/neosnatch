@@ -1,3 +1,9 @@
+// Color helpers for textual values (gauges live in render::bar).
+// Currently unused — kept for future per-value coloring (e.g. timestamps,
+// ports flagged as world-exposed). Marked allow-dead-code rather than
+// deleted so the threshold-coloring pattern stays accessible.
+#![allow(dead_code)]
+
 use crate::config::Thresholds;
 use owo_colors::OwoColorize;
 

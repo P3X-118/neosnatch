@@ -4,7 +4,9 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct OsInfo {
     pub pretty_name: String,
+    #[allow(dead_code)] // available for distro-specific behavior (e.g. advisory adapter dispatch)
     pub id: String,
+    #[allow(dead_code)] // exposed for renderer overrides; pretty_name covers the default case
     pub version: Option<String>,
 }
 
