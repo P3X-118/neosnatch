@@ -165,7 +165,7 @@ fn print_network(f: &Facts) {
     let cols = terminal_size().map(|(Width(w), _)| w as usize).unwrap_or(DEFAULT_COLS);
     print_section_header("network", cols);
 
-    let (primary, docker_summary) = format::collapse_ifaces(&f.interfaces, &f.docker_networks);
+    let (primary, bridges) = format::split_network(&f.interfaces, &f.docker_networks);
     let key_w = primary.iter().map(|i| i.name.len()).max().unwrap_or(0).max(KEY_W);
 
     for ifi in &primary {
@@ -174,8 +174,29 @@ fn print_network(f: &Facts) {
     if let Some(ip) = &f.public_ip {
         println!("  {:key_w$}  {}", "public", ip);
     }
-    if let Some(s) = docker_summary {
-        println!("  {:key_w$}  {}", "docker", s.bright_black());
+
+    if !bridges.is_empty() {
+        const MAX_VISIBLE: usize = 12;
+        let visible = bridges.iter().take(MAX_VISIBLE).collect::<Vec<_>>();
+        let name_w = visible.iter()
+            .map(|b| b.display_name().chars().count())
+            .max().unwrap_or(0);
+
+        for (i, b) in visible.iter().enumerate() {
+            let label = if i == 0 { "docker" } else { "" };
+            let ip = b.ip.map(|i| i.to_string()).unwrap_or_default();
+            let name = b.display_name();
+            let styled = if b.name.is_some() {
+                format!("{:name_w$}", name)
+            } else {
+                format!("{:name_w$}", name).bright_black().to_string()
+            };
+            println!("  {:key_w$}  {}  {}", label, styled, ip.bright_black());
+        }
+        if bridges.len() > MAX_VISIBLE {
+            let extra = bridges.len() - MAX_VISIBLE;
+            println!("  {:key_w$}  {}", "", format!("+{extra} more").bright_black());
+        }
     }
 }
 
@@ -184,14 +205,23 @@ fn print_security(f: &Facts) {
     print_section_header("security", cols);
 
     let (pub_svcs, loc_svcs) = format::group_ports_by_service(&f.listening_ports);
-    if !pub_svcs.is_empty() {
-        println!("  {:KEY_W$}  {}  {}",
-            "ports", "public".yellow(), format::fmt_service_list(&pub_svcs));
+    let svc_w = pub_svcs.iter().chain(loc_svcs.iter())
+        .map(|s| s.name.chars().count()).max().unwrap_or(0).max(8);
+
+    let mut first_overall = true;
+    for (i, sp) in pub_svcs.iter().enumerate() {
+        let key = if first_overall { "ports" } else { "" };
+        let scope = if i == 0 { "public".yellow().to_string() } else { "      ".to_string() };
+        println!("  {:KEY_W$}  {}  {:svc_w$}  {}",
+            key, scope, sp.name, format::fmt_ports(&sp.ports).bright_black());
+        first_overall = false;
     }
-    if !loc_svcs.is_empty() {
-        let pad = if pub_svcs.is_empty() { "ports" } else { "" };
-        println!("  {:KEY_W$}  {}   {}",
-            pad, "local".green(), format::fmt_service_list(&loc_svcs));
+    for (i, sp) in loc_svcs.iter().enumerate() {
+        let key = if first_overall { "ports" } else { "" };
+        let scope = if i == 0 { "local ".green().to_string() } else { "      ".to_string() };
+        println!("  {:KEY_W$}  {}  {:svc_w$}  {}",
+            key, scope, sp.name, format::fmt_ports(&sp.ports).bright_black());
+        first_overall = false;
     }
 
     if !f.failed_units.is_empty() {
@@ -242,6 +272,9 @@ fn print_footer(f: &Facts, cols: usize) {
     if let Some(p) = f.packages {
         parts.push(format!("{p} packages"));
     }
+    if let Some(age) = f.snapshot_age_secs {
+        parts.push(format!("snapshot {}", fmt_age(age)));
+    }
     let footer = if parts.is_empty() { String::new() } else { format!(" {} ", parts.join(" · ")) };
     let dashes = cols.saturating_sub(footer.chars().count() + 2);
     let left = dashes / 2;
@@ -251,4 +284,11 @@ fn print_footer(f: &Facts, cols: usize) {
         footer.bright_black(),
         format!("{}─╯", "─".repeat(right)).bright_black(),
     );
+}
+
+fn fmt_age(secs: u64) -> String {
+    if secs < 90 { format!("{secs}s ago") }
+    else if secs < 5400 { format!("{}m ago", secs / 60) }
+    else if secs < 172_800 { format!("{}h ago", secs / 3600) }
+    else { format!("{}d ago", secs / 86_400) }
 }

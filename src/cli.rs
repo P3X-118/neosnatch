@@ -35,4 +35,9 @@ pub struct Args {
     /// Render with synthetic facts (for visual iteration)
     #[arg(long)]
     pub demo: bool,
+
+    /// Write a privileged snapshot to PATH and exit (run as root via systemd timer).
+    /// Captures listeners with process names, docker network names, failed units.
+    #[arg(long, value_name = "PATH")]
+    pub snapshot: Option<PathBuf>,
 }

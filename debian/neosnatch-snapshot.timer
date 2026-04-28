@@ -1,0 +1,15 @@
+[Unit]
+Description=neosnatch privileged data snapshot (every 5 min)
+Documentation=https://github.com/P3X-118/neosnatch
+
+[Timer]
+# Run shortly after boot so the first login banner has data,
+# then every 5 minutes thereafter.
+OnBootSec=30s
+OnUnitActiveSec=5min
+RandomizedDelaySec=15s
+Unit=neosnatch-snapshot.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

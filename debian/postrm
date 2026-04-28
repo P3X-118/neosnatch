@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        if [ -d /var/cache/neosnatch ]; then
+            rm -rf /var/cache/neosnatch
+        fi
+        if [ -d /run/systemd/system ]; then
+            deb-systemd-helper purge neosnatch-snapshot.timer >/dev/null || true
+            deb-systemd-helper unmask neosnatch-snapshot.timer >/dev/null || true
+        fi
+        ;;
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload >/dev/null || true
+        fi
+        ;;
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

@@ -94,6 +94,7 @@ pub fn fixture() -> Facts {
             path: "/bin/bash".into(),
             version: Some("5.2.21".into()),
         }),
+        snapshot_age_secs: Some(127),
         docker_networks: docker::NetworkMap {
             by_bridge: [
                 ("docker0", "bridge"),

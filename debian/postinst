@@ -1,0 +1,32 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create snapshot cache dir (idempotent).
+        if [ ! -d /var/cache/neosnatch ]; then
+            install -d -o root -g root -m 0755 /var/cache/neosnatch
+        fi
+
+        # Reload + enable + start the timer.
+        if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload >/dev/null || true
+            if deb-systemd-helper debian-installed neosnatch-snapshot.timer; then
+                deb-systemd-helper update-state neosnatch-snapshot.timer >/dev/null || true
+            else
+                deb-systemd-helper enable neosnatch-snapshot.timer >/dev/null || true
+            fi
+            deb-systemd-invoke start neosnatch-snapshot.timer >/dev/null || true
+            # Trigger an immediate first snapshot so the banner has data on first login.
+            systemctl --no-block start neosnatch-snapshot.service >/dev/null || true
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

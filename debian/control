@@ -1,0 +1,25 @@
+Source: neosnatch
+Section: admin
+Priority: optional
+Maintainer: SGC <oneill@sgc.ai>
+Standards-Version: 4.7.0
+Build-Depends: debhelper-compat (= 13), cargo, rustc (>= 1.75)
+Homepage: https://github.com/P3X-118/neosnatch
+Vcs-Browser: https://github.com/P3X-118/neosnatch
+Vcs-Git: https://github.com/P3X-118/neosnatch.git
+Rules-Requires-Root: no
+
+Package: neosnatch
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Recommends: chafa
+Description: Login-banner sysadmin stats for Linux terminals
+ neosnatch displays operator-relevant system status on interactive shell
+ login: load average, memory and disk pressure, listening services and
+ their owning processes, Docker network names, failed systemd units,
+ pending security advisories, public IP, active sessions, and last login.
+ .
+ A privileged snapshot collector runs every 5 minutes via systemd timer
+ to capture data that requires root (process names of foreign sockets,
+ docker network IDs, failed unit list); the unprivileged login binary
+ reads the snapshot and merges it into live facts without elevating.

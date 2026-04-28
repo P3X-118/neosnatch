@@ -3,6 +3,7 @@ mod config;
 mod collect;
 mod render;
 mod cache;
+mod snapshot;
 
 use anyhow::Result;
 use clap::Parser;
@@ -13,6 +14,9 @@ async fn main() -> Result<()> {
     // panicking on the next println.
     unsafe { libc::signal(libc::SIGPIPE, libc::SIG_DFL); }
     let args = cli::Args::parse();
+    if let Some(out) = &args.snapshot {
+        return snapshot::generate(out).await;
+    }
     let cfg = config::load(args.config.as_deref())?;
     let facts = collect::gather(&cfg, &args).await;
     render::print(&cfg, &args, &facts)?;

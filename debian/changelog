@@ -1,0 +1,9 @@
+neosnatch (0.2.0-1) unstable; urgency=medium
+
+  * Initial Debian packaging.
+  * Section-based renderer with bar gauges, vertical port/docker layout.
+  * Privileged snapshot subcommand with systemd timer unit.
+  * Hardening: snapshot service runs with ProtectSystem=strict,
+    NoNewPrivileges, PrivateTmp, restricted ReadWritePaths.
+
+ -- SGC <oneill@sgc.ai>  Mon, 28 Apr 2026 17:30:00 +0000

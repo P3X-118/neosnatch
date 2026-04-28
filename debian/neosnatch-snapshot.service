@@ -1,0 +1,51 @@
+[Unit]
+Description=neosnatch privileged data snapshot
+Documentation=https://github.com/P3X-118/neosnatch
+ConditionPathIsDirectory=/var/cache
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/neosnatch --snapshot=/var/cache/neosnatch/snapshot.json
+
+# --- Hardening ---------------------------------------------------------
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+ProcSubset=all
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+# Capabilities: snapshot must read other processes' /proc/*/fd to map sockets
+# to process names, and run the docker CLI. CAP_DAC_READ_SEARCH bypasses fd
+# permission checks; CAP_SYS_PTRACE allows access to /proc/<pid> for foreign
+# processes. We strip everything else.
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
+AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
+
+# Filesystem access: only the cache dir is writable; everything else is RO.
+ReadWritePaths=/var/cache/neosnatch
+ReadOnlyPaths=/proc /sys /var/lib/docker /run/docker.sock
+
+# Networking: snapshot itself doesn't need network, but `docker network ls`
+# uses the local socket. No outbound IP traffic required.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
+# Runtime
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30

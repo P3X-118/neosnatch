@@ -45,12 +45,17 @@ pub struct Facts {
     pub gpus: Vec<gpu::Gpu>,
     pub shell: Option<shell::ShellInfo>,
     pub docker_networks: docker::NetworkMap,
+    /// Age of the privileged snapshot if one was loaded; None if no snapshot.
+    pub snapshot_age_secs: Option<u64>,
 }
 
 pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     if args.demo { return demo::fixture(); }
     let want_net = !args.offline;
     let s = &cfg.show;
+
+    let snap = crate::snapshot::read(std::path::Path::new(crate::snapshot::DEFAULT_PATH));
+    let snapshot_age_secs = snap.as_ref().and_then(crate::snapshot::age_secs);
 
     let host = hostname();
     let user = current_user();
@@ -67,7 +72,10 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     let interfaces = if s.network { net::list().unwrap_or_default() } else { vec![] };
     let sessions = if s.sessions { sessions::active().unwrap_or_default() } else { vec![] };
     let last_login = if s.last_login { sessions::last().ok().flatten() } else { None };
-    let listening_ports = if s.listening_ports { ports::list().unwrap_or_default() } else { vec![] };
+    let mut listening_ports = if s.listening_ports { ports::list().unwrap_or_default() } else { vec![] };
+    if let Some(s) = &snap {
+        merge_listener_processes(&mut listening_ports, &s.listeners);
+    }
     let packages = if s.packages { packages::count().await } else { None };
 
     let failed_fut = async {
@@ -85,8 +93,21 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
         if s.network { docker::lookup().await } else { docker::NetworkMap::default() }
     };
 
-    let (failed_units, advisories, public_ip, docker_networks) =
+    let (failed_units, advisories, public_ip, mut docker_networks) =
         tokio::join!(failed_fut, advisories_fut, public_ip_fut, docker_fut);
+
+    // Snapshot fallback: if live lookup gave nothing (e.g. user not in docker
+    // group, or `docker` binary unavailable), use snapshot's networks. Same for
+    // failed units when systemd D-Bus call was blocked.
+    let mut failed_units = failed_units;
+    if let Some(s) = &snap {
+        if docker_networks.by_bridge.is_empty() && !s.docker_networks.is_empty() {
+            docker_networks.by_bridge = s.docker_networks.clone();
+        }
+        if failed_units.is_empty() && !s.failed_units.is_empty() {
+            failed_units = s.failed_units.clone();
+        }
+    }
 
     Facts {
         host,
@@ -112,6 +133,29 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
         gpus,
         shell: shell_info,
         docker_networks,
+        snapshot_age_secs,
+    }
+}
+
+/// For each live listener missing a process name, fill it in from the snapshot
+/// if (proto, port) matches. Live listener list is authoritative — we only
+/// borrow process labels.
+fn merge_listener_processes(
+    live: &mut [ports::Listener],
+    snap: &[crate::snapshot::SnapshotListener],
+) {
+    use std::collections::HashMap;
+    let mut by_pp: HashMap<(String, u16), &str> = HashMap::new();
+    for s in snap {
+        if let Some(p) = &s.process {
+            by_pp.insert((s.proto.clone(), s.port), p.as_str());
+        }
+    }
+    for l in live.iter_mut() {
+        if l.process.is_some() { continue; }
+        if let Some(name) = by_pp.get(&(l.proto.to_string(), l.port)) {
+            l.process = Some((*name).to_string());
+        }
     }
 }
 

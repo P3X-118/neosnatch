@@ -42,56 +42,52 @@ pub fn clean_cpu(model: &str) -> String {
     s
 }
 
-/// Collapse interfaces into (primary list, docker-bridge summary line, public stays separate).
-/// Returns (primary_ifaces, docker_summary_or_none). When `nets` has entries,
-/// substitutes friendly names for `br-*` / `docker0` ifaces.
-pub fn collapse_ifaces<'a>(ifs: &'a [IfaceInfo], nets: &NetworkMap) -> (Vec<&'a IfaceInfo>, Option<String>) {
+/// One Docker bridge interface with optional friendly name and primary IP.
+#[derive(Debug, Clone)]
+pub struct DockerBridge {
+    pub iface: String,
+    pub name: Option<String>,
+    pub ip: Option<IpAddr>,
+}
+
+impl DockerBridge {
+    pub fn display_name(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.iface)
+    }
+}
+
+/// Split interfaces into (non-docker primary, docker bridges sorted by display name).
+pub fn split_network<'a>(
+    ifs: &'a [IfaceInfo],
+    nets: &NetworkMap,
+) -> (Vec<&'a IfaceInfo>, Vec<DockerBridge>) {
     let mut primary = Vec::new();
-    let mut docker_v4: Vec<Ipv4Addr> = Vec::new();
-    let mut named: Vec<String> = Vec::new();
-    let mut anon = 0usize;
+    let mut bridges = Vec::new();
 
     for ifi in ifs {
-        let is_docker_bridge = ifi.name.starts_with("br-") || ifi.name == "docker0";
-        if is_docker_bridge {
-            for a in &ifi.addrs {
-                if let IpAddr::V4(v4) = a { docker_v4.push(*v4); }
-            }
-            match nets.by_bridge.get(&ifi.name) {
-                Some(name) => named.push(name.clone()),
-                None => anon += 1,
-            }
+        let is_bridge = ifi.name.starts_with("br-") || ifi.name == "docker0";
+        if is_bridge {
+            bridges.push(DockerBridge {
+                iface: ifi.name.clone(),
+                name: nets.by_bridge.get(&ifi.name).cloned(),
+                ip: ifi.addrs.first().copied(),
+            });
         } else {
             primary.push(ifi);
         }
     }
 
-    let total = named.len() + anon;
-    if total == 0 { return (primary, None); }
-
-    docker_v4.sort();
-    let range = match (docker_v4.first(), docker_v4.last()) {
-        (Some(lo), Some(hi)) if lo == hi => format!("{lo}"),
-        (Some(lo), Some(hi)) => format!("{lo}–{hi}"),
-        _ => String::new(),
-    };
-
-    // Show first N names; truncate the rest with "+M more". Anonymous bridges
-    // (when docker name lookup is stale or unavailable) fold into the +more bucket.
-    const SHOW: usize = 5;
-    named.sort();
-    let shown: Vec<&str> = named.iter().take(SHOW).map(String::as_str).collect();
-    let remaining = named.len().saturating_sub(SHOW) + anon;
-
-    let mut s = if shown.is_empty() {
-        format!("{total} bridges")
-    } else if remaining == 0 {
-        shown.join(", ")
-    } else {
-        format!("{}, +{remaining} more", shown.join(", "))
-    };
-    if !range.is_empty() { s.push_str(&format!(" ({range})")); }
-    (primary, Some(s))
+    bridges.sort_by(|a, b| {
+        // Named bridges first (alphabetical), then anonymous ones by iface name.
+        match (&a.name, &b.name) {
+            (Some(x), Some(y)) => x.cmp(y),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.iface.cmp(&b.iface),
+        }
+    });
+    let _ = Ipv4Addr::UNSPECIFIED; // keep import used
+    (primary, bridges)
 }
 
 /// One service entry: the process name and the ports it listens on, sorted ascending.
@@ -131,11 +127,8 @@ pub fn group_ports_by_service(ls: &[Listener]) -> (Vec<ServicePorts>, Vec<Servic
     (to_vec(pub_map), to_vec(loc_map))
 }
 
-pub fn fmt_service_list(services: &[ServicePorts]) -> String {
-    services.iter().map(|s| {
-        let ports = s.ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");
-        format!("{}:{ports}", s.name)
-    }).collect::<Vec<_>>().join(", ")
+pub fn fmt_ports(ports: &[u16]) -> String {
+    ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
 }
 
 pub fn iface_addrs(ifi: &IfaceInfo) -> String {

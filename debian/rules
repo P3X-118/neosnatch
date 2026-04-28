@@ -1,0 +1,30 @@
+#!/usr/bin/make -f
+# Debian rules. Once debhelper + dh-cargo are installed (for upstream submission),
+# replace this body with `dh $@ --buildsystem=cargo`. For now, a minimal native
+# build invoking cargo directly so the package builds without dh-cargo.
+
+export CARGO_HOME ?= $(CURDIR)/.cargo
+export DEB_BUILD_OPTIONS
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	cargo build --release --locked
+
+override_dh_auto_install:
+	install -Dm755 target/release/neosnatch debian/neosnatch/usr/bin/neosnatch
+	install -Dm644 contrib/neosnatch.sh \
+		debian/neosnatch/etc/profile.d/neosnatch.sh
+	install -Dm644 contrib/config.example.toml \
+		debian/neosnatch/etc/neosnatch/config.toml.example
+	install -Dm644 debian/neosnatch-snapshot.service \
+		debian/neosnatch/lib/systemd/system/neosnatch-snapshot.service
+	install -Dm644 debian/neosnatch-snapshot.timer \
+		debian/neosnatch/lib/systemd/system/neosnatch-snapshot.timer
+
+override_dh_auto_clean:
+	cargo clean
+
+override_dh_auto_test:
+	# no tests yet
