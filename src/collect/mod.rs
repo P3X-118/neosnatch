@@ -13,6 +13,8 @@ pub mod packages;
 pub mod host;
 pub mod gpu;
 pub mod shell;
+pub mod processes;
+pub mod docker;
 pub mod demo;
 
 use crate::cli::Args;
@@ -42,6 +44,7 @@ pub struct Facts {
     pub host_info: Option<host::HostInfo>,
     pub gpus: Vec<gpu::Gpu>,
     pub shell: Option<shell::ShellInfo>,
+    pub docker_networks: docker::NetworkMap,
 }
 
 pub async fn gather(cfg: &Config, args: &Args) -> Facts {
@@ -78,9 +81,12 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
             public_ip::fetch(&cfg.network, args.cache_ttl).await
         } else { None }
     };
+    let docker_fut = async {
+        if s.network { docker::lookup().await } else { docker::NetworkMap::default() }
+    };
 
-    let (failed_units, advisories, public_ip) =
-        tokio::join!(failed_fut, advisories_fut, public_ip_fut);
+    let (failed_units, advisories, public_ip, docker_networks) =
+        tokio::join!(failed_fut, advisories_fut, public_ip_fut, docker_fut);
 
     Facts {
         host,
@@ -105,6 +111,7 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
         host_info,
         gpus,
         shell: shell_info,
+        docker_networks,
     }
 }
 

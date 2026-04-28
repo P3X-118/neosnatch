@@ -165,7 +165,7 @@ fn print_network(f: &Facts) {
     let cols = terminal_size().map(|(Width(w), _)| w as usize).unwrap_or(DEFAULT_COLS);
     print_section_header("network", cols);
 
-    let (primary, docker_summary) = format::collapse_ifaces(&f.interfaces);
+    let (primary, docker_summary) = format::collapse_ifaces(&f.interfaces, &f.docker_networks);
     let key_w = primary.iter().map(|i| i.name.len()).max().unwrap_or(0).max(KEY_W);
 
     for ifi in &primary {
@@ -183,17 +183,15 @@ fn print_security(f: &Facts) {
     let cols = terminal_size().map(|(Width(w), _)| w as usize).unwrap_or(DEFAULT_COLS);
     print_section_header("security", cols);
 
-    let (pub_ports, loc_ports) = format::group_ports(&f.listening_ports);
-    if !pub_ports.is_empty() || !loc_ports.is_empty() {
-        if !pub_ports.is_empty() {
-            println!("  {:KEY_W$}  {}  {}",
-                "ports", "public".yellow(), format::join_ports(&pub_ports));
-        }
-        if !loc_ports.is_empty() {
-            let pad = if pub_ports.is_empty() { "ports" } else { "" };
-            println!("  {:KEY_W$}  {}   {}",
-                pad, "local".green(), format::join_ports(&loc_ports));
-        }
+    let (pub_svcs, loc_svcs) = format::group_ports_by_service(&f.listening_ports);
+    if !pub_svcs.is_empty() {
+        println!("  {:KEY_W$}  {}  {}",
+            "ports", "public".yellow(), format::fmt_service_list(&pub_svcs));
+    }
+    if !loc_svcs.is_empty() {
+        let pad = if pub_svcs.is_empty() { "ports" } else { "" };
+        println!("  {:KEY_W$}  {}   {}",
+            pad, "local".green(), format::fmt_service_list(&loc_svcs));
     }
 
     if !f.failed_units.is_empty() {

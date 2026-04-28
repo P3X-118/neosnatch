@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr};
 
-use crate::collect::{net::IfaceInfo, ports::Listener};
+use crate::collect::{docker::NetworkMap, net::IfaceInfo, ports::Listener};
 
 pub fn human_bytes(b: u64) -> String {
     const U: [&str; 5] = ["B", "K", "M", "G", "T"];
@@ -43,66 +43,99 @@ pub fn clean_cpu(model: &str) -> String {
 }
 
 /// Collapse interfaces into (primary list, docker-bridge summary line, public stays separate).
-/// Returns (primary_ifaces, docker_summary_or_none).
-pub fn collapse_ifaces(ifs: &[IfaceInfo]) -> (Vec<&IfaceInfo>, Option<String>) {
+/// Returns (primary_ifaces, docker_summary_or_none). When `nets` has entries,
+/// substitutes friendly names for `br-*` / `docker0` ifaces.
+pub fn collapse_ifaces<'a>(ifs: &'a [IfaceInfo], nets: &NetworkMap) -> (Vec<&'a IfaceInfo>, Option<String>) {
     let mut primary = Vec::new();
     let mut docker_v4: Vec<Ipv4Addr> = Vec::new();
-    let mut docker_count = 0usize;
+    let mut named: Vec<String> = Vec::new();
+    let mut anon = 0usize;
 
     for ifi in ifs {
         let is_docker_bridge = ifi.name.starts_with("br-") || ifi.name == "docker0";
         if is_docker_bridge {
-            docker_count += 1;
             for a in &ifi.addrs {
                 if let IpAddr::V4(v4) = a { docker_v4.push(*v4); }
+            }
+            match nets.by_bridge.get(&ifi.name) {
+                Some(name) => named.push(name.clone()),
+                None => anon += 1,
             }
         } else {
             primary.push(ifi);
         }
     }
 
-    let summary = if docker_count == 0 {
-        None
-    } else {
-        docker_v4.sort();
-        let range = match (docker_v4.first(), docker_v4.last()) {
-            (Some(lo), Some(hi)) if lo == hi => format!("{lo}"),
-            (Some(lo), Some(hi)) => format!("{lo} – {hi}"),
-            _ => String::new(),
-        };
-        let plural = if docker_count == 1 { "bridge" } else { "bridges" };
-        Some(if range.is_empty() {
-            format!("{docker_count} {plural}")
-        } else {
-            format!("{docker_count} {plural} ({range})")
-        })
+    let total = named.len() + anon;
+    if total == 0 { return (primary, None); }
+
+    docker_v4.sort();
+    let range = match (docker_v4.first(), docker_v4.last()) {
+        (Some(lo), Some(hi)) if lo == hi => format!("{lo}"),
+        (Some(lo), Some(hi)) => format!("{lo}–{hi}"),
+        _ => String::new(),
     };
 
-    (primary, summary)
+    // Show first N names; truncate the rest with "+M more". Anonymous bridges
+    // (when docker name lookup is stale or unavailable) fold into the +more bucket.
+    const SHOW: usize = 5;
+    named.sort();
+    let shown: Vec<&str> = named.iter().take(SHOW).map(String::as_str).collect();
+    let remaining = named.len().saturating_sub(SHOW) + anon;
+
+    let mut s = if shown.is_empty() {
+        format!("{total} bridges")
+    } else if remaining == 0 {
+        shown.join(", ")
+    } else {
+        format!("{}, +{remaining} more", shown.join(", "))
+    };
+    if !range.is_empty() { s.push_str(&format!(" ({range})")); }
+    (primary, Some(s))
 }
 
-/// Group listeners into (public_ports, local_ports). Dedupe by port. Sort numerically.
-pub fn group_ports(ls: &[Listener]) -> (Vec<u16>, Vec<u16>) {
-    let mut pub_ports: BTreeMap<u16, ()> = BTreeMap::new();
-    let mut loc_ports: BTreeMap<u16, ()> = BTreeMap::new();
+/// One service entry: the process name and the ports it listens on, sorted ascending.
+#[derive(Debug, Clone)]
+pub struct ServicePorts {
+    pub name: String,
+    pub ports: Vec<u16>,
+}
+
+/// Group listeners into (public services, local services).
+/// "public" = bound to 0.0.0.0/:: or a specific non-loopback IP (externally reachable).
+/// "local" = bound to a loopback address.
+/// Dedupe by (service, port). Within each scope, sort by lowest port number.
+pub fn group_ports_by_service(ls: &[Listener]) -> (Vec<ServicePorts>, Vec<ServicePorts>) {
+    let mut pub_map: BTreeMap<String, BTreeMap<u16, ()>> = BTreeMap::new();
+    let mut loc_map: BTreeMap<String, BTreeMap<u16, ()>> = BTreeMap::new();
+
     for l in ls {
-        let unspec = match l.addr {
-            IpAddr::V4(v4) => v4.is_unspecified(),
-            IpAddr::V6(v6) => v6.is_unspecified(),
-        };
         let loop_ = match l.addr {
             IpAddr::V4(v4) => v4.is_loopback(),
             IpAddr::V6(v6) => v6.is_loopback(),
         };
-        if unspec { pub_ports.insert(l.port, ()); }
-        else if loop_ { loc_ports.insert(l.port, ()); }
-        else { pub_ports.insert(l.port, ()); }  // bound to specific iface — still externally reachable
+        let key = l.process.clone().unwrap_or_else(|| "?".into());
+        let bucket = if loop_ { &mut loc_map } else { &mut pub_map };
+        bucket.entry(key).or_default().insert(l.port, ());
     }
-    (pub_ports.keys().copied().collect(), loc_ports.keys().copied().collect())
+
+    let to_vec = |m: BTreeMap<String, BTreeMap<u16, ()>>| -> Vec<ServicePorts> {
+        let mut v: Vec<ServicePorts> = m.into_iter().map(|(name, ports)| ServicePorts {
+            name, ports: ports.keys().copied().collect()
+        }).collect();
+        // Sort by lowest port (ops scan "what's on 22, 80, 443, ..." first).
+        v.sort_by_key(|s| s.ports.first().copied().unwrap_or(u16::MAX));
+        v
+    };
+
+    (to_vec(pub_map), to_vec(loc_map))
 }
 
-pub fn join_ports(ports: &[u16]) -> String {
-    ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+pub fn fmt_service_list(services: &[ServicePorts]) -> String {
+    services.iter().map(|s| {
+        let ports = s.ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");
+        format!("{}:{ports}", s.name)
+    }).collect::<Vec<_>>().join(", ")
 }
 
 pub fn iface_addrs(ifi: &IfaceInfo) -> String {

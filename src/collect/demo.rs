@@ -68,13 +68,13 @@ pub fn fixture() -> Facts {
         }),
         failed_units: vec!["fail2ban.service".into(), "snapd.failure.service".into()],
         listening_ports: vec![
-            listener("tcp",  "0.0.0.0",   22),
-            listener("tcp",  "0.0.0.0",   80),
-            listener("tcp",  "0.0.0.0",   443),
-            listener("tcp",  "0.0.0.0",   3001),
-            listener("tcp",  "127.0.0.1", 5432),
-            listener("tcp",  "127.0.0.1", 6379),
-            listener("tcp",  "127.0.0.54", 53),
+            listener("tcp",  "0.0.0.0",   22,   Some("sshd")),
+            listener("tcp",  "0.0.0.0",   80,   Some("nginx")),
+            listener("tcp",  "0.0.0.0",   443,  Some("nginx")),
+            listener("tcp",  "0.0.0.0",   3001, Some("node")),
+            listener("tcp",  "127.0.0.1", 5432, Some("postgres")),
+            listener("tcp",  "127.0.0.1", 6379, Some("redis-server")),
+            listener("tcp",  "127.0.0.54", 53,  Some("systemd-resolved")),
         ],
         advisories: Some(advisories::Advisories {
             source: "apt".into(),
@@ -94,6 +94,17 @@ pub fn fixture() -> Facts {
             path: "/bin/bash".into(),
             version: Some("5.2.21".into()),
         }),
+        docker_networks: docker::NetworkMap {
+            by_bridge: [
+                ("docker0", "bridge"),
+                ("br-3930fae8dd8e", "proxy-net"),
+                ("br-6f99cbb4772e", "prod-db"),
+                ("br-90cbf5616a9b", "monitoring"),
+                ("br-94ca12fa519b", "internal"),
+                ("br-b686cb4c97c4", "ci-runners"),
+                ("br-f40626583dd4", "vault"),
+            ].into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        },
     }
 }
 
@@ -104,7 +115,7 @@ fn iface(name: &str, ip: &str) -> net::IfaceInfo {
     }
 }
 
-fn listener(proto: &'static str, ip: &str, port: u16) -> ports::Listener {
+fn listener(proto: &'static str, ip: &str, port: u16, process: Option<&str>) -> ports::Listener {
     let addr: IpAddr = ip.parse().unwrap_or_else(|_| IpAddr::V4(Ipv4Addr::UNSPECIFIED));
-    ports::Listener { proto, addr, port }
+    ports::Listener { proto, addr, port, process: process.map(str::to_owned) }
 }

@@ -8,11 +8,13 @@ pub struct Listener {
     pub proto: &'static str,
     pub addr: IpAddr,
     pub port: u16,
+    pub process: Option<String>,
 }
 
 const TCP_LISTEN: &str = "0A";
 
 pub fn list() -> Result<Vec<Listener>> {
+    let inode_map = super::processes::socket_inode_map();
     let mut seen: BTreeSet<(&'static str, u16)> = BTreeSet::new();
     let mut out = Vec::new();
 
@@ -23,11 +25,13 @@ pub fn list() -> Result<Vec<Listener>> {
         let Ok(raw) = std::fs::read_to_string(path) else { continue; };
         for line in raw.lines().skip(1) {
             let cols: Vec<&str> = line.split_whitespace().collect();
-            if cols.len() < 4 { continue; }
+            if cols.len() < 10 { continue; }
             if cols[3] != TCP_LISTEN { continue; }
             let Some((addr, port)) = parse_addr(cols[1], v6) else { continue; };
             if !seen.insert((proto, port)) { continue; }
-            out.push(Listener { proto, addr, port });
+            let inode: u64 = cols[9].parse().unwrap_or(0);
+            let process = inode_map.get(&inode).cloned();
+            out.push(Listener { proto, addr, port, process });
         }
     }
     Ok(out)
@@ -39,7 +43,6 @@ fn parse_addr(s: &str, v6: bool) -> Option<(IpAddr, u16)> {
     if v6 {
         if ip_hex.len() != 32 { return None; }
         let mut bytes = [0u8; 16];
-        // /proc/net/tcp6 stores 4 little-endian u32 chunks
         for i in 0..4 {
             let chunk = &ip_hex[i * 8..i * 8 + 8];
             let n = u32::from_str_radix(chunk, 16).ok()?;
