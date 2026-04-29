@@ -1,0 +1,68 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build .deb (${{ matrix.target.arch }})
+    runs-on: ${{ matrix.target.runner }}
+    strategy:
+      matrix:
+        target:
+          - { arch: amd64, runner: ubuntu-latest, rust: x86_64-unknown-linux-gnu }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target.rust }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Verify Cargo.toml version matches tag
+        run: |
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          TOML_VER=$(awk '/^version *=/ { gsub(/"/, "", $3); print $3; exit }' Cargo.toml)
+          if [ "$TAG_VER" != "$TOML_VER" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match Cargo.toml version $TOML_VER" >&2
+            exit 1
+          fi
+
+      - name: Build .deb
+        run: bash scripts/build-deb.sh
+
+      - name: Locate artifact
+        id: artifact
+        run: |
+          DEB=$(ls target/deb/neosnatch_*_${{ matrix.target.arch }}.deb | head -n1)
+          echo "path=$DEB" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$DEB")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact (CI side)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: ${{ steps.artifact.outputs.path }}
+
+      - name: Attach to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.artifact.outputs.path }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
