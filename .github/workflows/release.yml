@@ -10,19 +10,28 @@ permissions:
 
 jobs:
   build:
-    name: Build .deb (${{ matrix.target.arch }})
-    runs-on: ${{ matrix.target.runner }}
+    name: Build ${{ matrix.format }} (${{ matrix.arch }})
+    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        target:
-          - { arch: amd64, runner: ubuntu-latest, rust: x86_64-unknown-linux-gnu }
+        include:
+          # Debian / Ubuntu / Mint
+          - { format: deb,     arch: amd64,   target: x86_64-unknown-linux-gnu,    cross: false }
+          - { format: deb,     arch: arm64,   target: aarch64-unknown-linux-gnu,   cross: true  }
+          # Fedora / RHEL / Rocky / Alma / openSUSE
+          - { format: rpm,     arch: x86_64,  target: x86_64-unknown-linux-gnu,    cross: false }
+          - { format: rpm,     arch: aarch64, target: aarch64-unknown-linux-gnu,   cross: true  }
+          # Distro-independent static binaries (Alpine / NixOS / generic)
+          - { format: tarball, arch: x86_64,  target: x86_64-unknown-linux-musl,   cross: false }
+          - { format: tarball, arch: aarch64, target: aarch64-unknown-linux-musl,  cross: true  }
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target.rust }}
+          targets: ${{ matrix.target }}
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -31,7 +40,37 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-${{ matrix.target.arch }}-cargo-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Install cross-compilers (gnu cross only)
+        if: matrix.cross && endsWith(matrix.target, '-linux-gnu')
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y gcc-aarch64-linux-gnu
+          mkdir -p .cargo
+          {
+            echo "[target.aarch64-unknown-linux-gnu]"
+            echo "linker = \"aarch64-linux-gnu-gcc\""
+          } >> .cargo/config.toml
+
+      - name: Install musl tooling
+        if: endsWith(matrix.target, '-linux-musl')
+        run: |
+          sudo apt-get update -qq
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+            sudo apt-get install -qq -y musl-tools gcc-aarch64-linux-gnu
+            mkdir -p .cargo
+            {
+              echo "[target.aarch64-unknown-linux-musl]"
+              echo "linker = \"aarch64-linux-gnu-gcc\""
+            } >> .cargo/config.toml
+          else
+            sudo apt-get install -qq -y musl-tools
+          fi
+
+      - name: Install cargo-generate-rpm
+        if: matrix.format == 'rpm'
+        run: cargo install --locked cargo-generate-rpm
 
       - name: Verify Cargo.toml version matches tag
         run: |
@@ -43,25 +82,64 @@ jobs:
           fi
 
       - name: Build .deb
+        if: matrix.format == 'deb'
+        env:
+          TARGET: ${{ matrix.target }}
+          DEB_ARCH: ${{ matrix.arch }}
         run: bash scripts/build-deb.sh
+
+      - name: Build .rpm
+        if: matrix.format == 'rpm'
+        env:
+          TARGET: ${{ matrix.target }}
+          RPM_ARCH: ${{ matrix.arch }}
+        run: bash scripts/build-rpm.sh
+
+      - name: Build tarball
+        if: matrix.format == 'tarball'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash scripts/build-tarball.sh
 
       - name: Locate artifact
         id: artifact
         run: |
-          DEB=$(ls target/deb/neosnatch_*_${{ matrix.target.arch }}.deb | head -n1)
-          echo "path=$DEB" >> "$GITHUB_OUTPUT"
-          echo "name=$(basename "$DEB")" >> "$GITHUB_OUTPUT"
+          case "${{ matrix.format }}" in
+            deb)     ART=$(ls target/deb/neosnatch_*_${{ matrix.arch }}.deb | head -n1) ;;
+            rpm)     ART=$(ls target/generate-rpm/*.rpm | head -n1) ;;
+            tarball) ART=$(ls target/tarball/neosnatch-*-${{ matrix.arch }}-linux-musl.tar.gz | head -n1) ;;
+          esac
+          echo "path=$ART" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$ART")" >> "$GITHUB_OUTPUT"
 
-      - name: Upload artifact (CI side)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact.outputs.name }}
           path: ${{ steps.artifact.outputs.path }}
 
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Attach to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.artifact.outputs.path }}
+          files: |
+            dist/*
           fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false

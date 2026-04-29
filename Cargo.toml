@@ -1,6 +1,6 @@
 [package]
 name = "neosnatch"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 description = "Not your Daddy's Neofetch"
 license = "MIT"
@@ -33,3 +33,22 @@ lto = "thin"
 codegen-units = 1
 strip = true
 opt-level = 3
+
+# RPM packaging (consumed by `cargo generate-rpm`).
+[package.metadata.generate-rpm]
+summary = "Sysadmin login banner — single-binary Rust rewrite of neofetch"
+license = "MIT"
+assets = [
+    { source = "target/release/neosnatch",                  dest = "/usr/bin/neosnatch",                                              mode = "755" },
+    { source = "contrib/neosnatch.sh",                      dest = "/etc/profile.d/neosnatch.sh",                                     mode = "644", config = true },
+    { source = "contrib/config.example.toml",               dest = "/etc/neosnatch/config.toml.example",                              mode = "644" },
+    { source = "debian/neosnatch-snapshot.service",         dest = "/usr/lib/systemd/system/neosnatch-snapshot.service",              mode = "644" },
+    { source = "debian/neosnatch-snapshot.timer",           dest = "/usr/lib/systemd/system/neosnatch-snapshot.timer",                mode = "644" },
+    { source = "debian/copyright",                          dest = "/usr/share/doc/neosnatch/copyright",                              mode = "644", doc = true },
+]
+post_install_script = "rpm/post.sh"
+pre_uninstall_script = "rpm/preun.sh"
+post_uninstall_script = "rpm/postun.sh"
+
+[package.metadata.generate-rpm.requires]
+glibc = "*"

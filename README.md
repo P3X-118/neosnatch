@@ -21,18 +21,31 @@ login binary itself is unprivileged.
 
 ## Install
 
+One-liner — auto-detects the host package format and architecture:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/P3X-118/neosnatch/sgc/install.sh | sudo bash
 ```
 
-Or grab the `.deb` directly from the [latest release][latest] and:
+Or grab an artifact from the [latest release][latest]:
+
+| Distro family                                  | Architectures   | Artifact                                        |
+|------------------------------------------------|-----------------|-------------------------------------------------|
+| Debian / Ubuntu / Mint / Pop!\_OS              | amd64, arm64    | `neosnatch_<ver>-1_<arch>.deb`                  |
+| Fedora / RHEL / Rocky / Alma / openSUSE        | x86_64, aarch64 | `neosnatch-<ver>-1.<arch>.rpm`                  |
+| Alpine / NixOS / Slackware / static glibc-less | x86_64, aarch64 | `neosnatch-<ver>-<arch>-linux-musl.tar.gz`      |
+
+Manual install:
 
 ```sh
-sudo dpkg -i neosnatch_*_amd64.deb
+sudo dpkg -i  neosnatch_*_amd64.deb         # Debian-family
+sudo dnf install neosnatch-*.x86_64.rpm     # Red Hat-family
+tar xzf neosnatch-*-x86_64-linux-musl.tar.gz && sudo ./neosnatch-*/install.sh
 ```
 
-The `.deb` installs the binary, the systemd timer + service, the profile
-drop-in, and creates the dedicated `neosnatch` system user.
+Each artifact installs the binary, the systemd timer + service, the
+profile drop-in, and creates the dedicated `neosnatch` system user.
+SHA256SUMS for every release is attached to the release page.
 
 [latest]: https://github.com/P3X-118/neosnatch/releases/latest
 

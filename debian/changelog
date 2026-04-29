@@ -1,3 +1,16 @@
+neosnatch (0.7.0-1) unstable; urgency=medium
+
+  * Distribution expansion:
+    - Native packages now ship for Debian/Ubuntu (.deb amd64 + arm64),
+      Red Hat-family (.rpm x86_64 + aarch64), and a static-musl tarball
+      for Alpine/NixOS/generic (x86_64 + aarch64).
+    - install.sh autodetects dpkg / rpm / tarball and host architecture.
+    - SHA256SUMS file attached to every release.
+    - Release workflow fans out across the matrix and gates on
+      Cargo.toml-vs-tag version match.
+
+ -- SGC <oneill@sgc.ai>  Wed, 29 Apr 2026 22:00:00 +0000
+
 neosnatch (0.6.0-1) unstable; urgency=medium
 
   * Banner restructure:
