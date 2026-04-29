@@ -49,7 +49,6 @@ INSTALLED_KB=$(du -sk "${STAGE}" | cut -f1)
     echo "Version: ${VERSION}-1"
     echo "Architecture: ${ARCH}"
     echo "Depends: libc6"
-    echo "Recommends: chafa"
     echo "Installed-Size: ${INSTALLED_KB}"
     awk '/^Description:/,EOF' debian/control
 } > "${STAGE}/DEBIAN/control"

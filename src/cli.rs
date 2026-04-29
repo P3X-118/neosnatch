@@ -2,7 +2,7 @@ use clap::Parser;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(name = "neosnatch", version, about = "Login-banner sysadmin stats for Linux")]
+#[command(name = "neosnatch", version, about = "Not your Daddy's Neofetch")]
 pub struct Args {
     /// Path to config file (default: ~/.config/neosnatch/config.toml)
     #[arg(long)]
@@ -20,8 +20,8 @@ pub struct Args {
     #[arg(long)]
     pub no_logo: bool,
 
-    /// Override logo path
-    #[arg(long)]
+    /// (deprecated, no-op) used to override the chafa-rendered logo image
+    #[arg(long, hide = true)]
     pub logo: Option<PathBuf>,
 
     /// Cache TTL in seconds for slow facts
@@ -40,4 +40,12 @@ pub struct Args {
     /// Captures listeners with process names, docker network names, failed units.
     #[arg(long, value_name = "PATH")]
     pub snapshot: Option<PathBuf>,
+
+    /// Print the full listening-ports list (no truncation) and exit
+    #[arg(long)]
+    pub ports: bool,
+
+    /// Print the full cron inventory (no truncation) and exit
+    #[arg(long)]
+    pub cron: bool,
 }

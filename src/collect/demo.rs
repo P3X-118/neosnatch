@@ -81,6 +81,67 @@ pub fn fixture() -> Facts {
             critical: 0, high: 7, total: 23,
         }),
         packages: Some(2147),
+        packages_size_kb: Some(8_400_000), // ~8.0G
+        packages_manager: Some("apt"),
+        packages_manual: vec![
+            "build-essential", "curl", "docker-ce", "fail2ban", "git", "htop",
+            "jq", "neovim", "nginx", "postgresql-16", "python3-pip", "redis",
+            "ripgrep", "rustc", "tmux", "ufw", "vim", "zsh",
+        ].into_iter().map(String::from).collect(),
+        services_non_default: vec![
+            services::ServiceUnit { name: "docker".into(),     package: Some("docker-ce".into()) },
+            services::ServiceUnit { name: "fail2ban".into(),   package: Some("fail2ban".into()) },
+            services::ServiceUnit { name: "nginx".into(),      package: Some("nginx".into()) },
+            services::ServiceUnit { name: "postgresql".into(), package: Some("postgresql-16".into()) },
+            services::ServiceUnit { name: "redis-server".into(), package: Some("redis".into()) },
+        ],
+        encryption: Some(encryption::Encryption {
+            mounts: vec![
+                encryption::MountStatus {
+                    mount: "/".into(),
+                    status: encryption::Status::Encrypted("LUKS2".into()),
+                },
+                encryption::MountStatus {
+                    mount: "/boot".into(),
+                    status: encryption::Status::Unencrypted,
+                },
+            ],
+        }),
+        sudoers: vec![
+            sudoers::SudoersRule {
+                source: "/etc/sudoers".into(),
+                principal: "root".into(),
+                runas: "(ALL:ALL)".into(),
+                nopasswd: false,
+                command: "ALL".into(),
+            },
+            sudoers::SudoersRule {
+                source: "/etc/sudoers.d/oneill".into(),
+                principal: "oneill".into(),
+                runas: "(ALL)".into(),
+                nopasswd: true,
+                command: "/usr/bin/systemctl".into(),
+            },
+            sudoers::SudoersRule {
+                source: "/etc/sudoers".into(),
+                principal: "%sudo".into(),
+                runas: "(ALL:ALL)".into(),
+                nopasswd: false,
+                command: "ALL".into(),
+            },
+        ],
+        cron_jobs: vec![
+            cron::CronJob { source: "/etc/crontab".into(), schedule: "17 * * * *".into(),
+                user: "root".into(), command: "cd / && run-parts --report /etc/cron.hourly".into() },
+            cron::CronJob { source: "/etc/cron.d/atop".into(), schedule: "*/10 * * * *".into(),
+                user: "root".into(), command: "/usr/share/atop/atop.daily".into() },
+            cron::CronJob { source: "/etc/cron.daily".into(), schedule: "daily".into(),
+                user: "root".into(), command: "logrotate".into() },
+            cron::CronJob { source: "user:oneill".into(), schedule: "0 3 * * *".into(),
+                user: "oneill".into(), command: "/usr/local/bin/backup.sh".into() },
+        ],
+        anomalous_login: true,
+        known_login_hosts: vec!["10.6.0.50".into()],
         host_info: Some(host::HostInfo {
             model: Some("PowerEdge R610".into()),
             vendor: Some("Dell Inc.".into()),
@@ -95,6 +156,16 @@ pub fn fixture() -> Facts {
             version: Some("5.2.21".into()),
         }),
         snapshot_age_secs: Some(127),
+        docker_container_ports: vec![
+            docker::ContainerPort { container: "traefik".into(),    network: "proxy-net".into(),
+                host_port: 80,   container_port: 80,   proto: "tcp".into() },
+            docker::ContainerPort { container: "traefik".into(),    network: "proxy-net".into(),
+                host_port: 443,  container_port: 443,  proto: "tcp".into() },
+            docker::ContainerPort { container: "grafana".into(),    network: "monitoring".into(),
+                host_port: 3000, container_port: 3000, proto: "tcp".into() },
+            docker::ContainerPort { container: "vault".into(),      network: "vault".into(),
+                host_port: 8200, container_port: 8200, proto: "tcp".into() },
+        ],
         docker_networks: docker::NetworkMap {
             by_bridge: [
                 ("docker0", "bridge"),

@@ -9,7 +9,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 pub const DEFAULT_PATH: &str = "/var/cache/neosnatch/snapshot.json";
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Snapshot {
@@ -20,6 +20,18 @@ pub struct Snapshot {
     /// bridge interface name → docker network name
     pub docker_networks: HashMap<String, String>,
     pub failed_units: Vec<String>,
+    #[serde(default)]
+    pub sudoers: Vec<crate::collect::sudoers::SudoersRule>,
+    #[serde(default)]
+    pub cron_jobs: Vec<crate::collect::cron::CronJob>,
+    /// Hosts that have appeared in wtmp at least twice; render flags any
+    /// session host *not* in this set as anomalous.
+    #[serde(default)]
+    pub known_login_hosts: Vec<String>,
+    #[serde(default)]
+    pub docker_container_ports: Vec<crate::collect::docker::ContainerPort>,
+    #[serde(default)]
+    pub advisories: Option<crate::collect::advisories::Advisories>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,11 +72,19 @@ pub fn age_secs(snap: &Snapshot) -> Option<u64> {
 }
 
 pub async fn generate(out: &Path) -> Result<()> {
-    use crate::collect::{docker, ports, systemd};
+    use crate::collect::{cron, docker, ports, sessions, sudoers, systemd};
 
     let listeners_live = ports::list().unwrap_or_default();
     let docker_map = docker::lookup().await;
     let failed = systemd::failed_units().await.unwrap_or_default();
+    let sudoers_rules = sudoers::collect_all();
+    let cron_jobs = cron::collect_all();
+    let known_login_hosts = sessions::known_hosts(2).unwrap_or_default();
+    let docker_container_ports = docker::container_ports().await;
+    // Helper-side advisories collection. Read-only (consumes whatever the
+    // OS's apt-daily / update-notifier timers have populated). Bypasses the
+    // login-side cache by passing TTL=0; this is the authoritative read.
+    let advisories = crate::collect::advisories::check(0).await;
 
     let listeners = listeners_live.into_iter().map(|l| SnapshotListener {
         proto: l.proto.to_string(),
@@ -80,6 +100,11 @@ pub async fn generate(out: &Path) -> Result<()> {
         listeners,
         docker_networks: docker_map.by_bridge,
         failed_units: failed,
+        sudoers: sudoers_rules,
+        cron_jobs,
+        known_login_hosts,
+        docker_container_ports,
+        advisories,
     };
     write_atomic(out, &snap)?;
     Ok(())

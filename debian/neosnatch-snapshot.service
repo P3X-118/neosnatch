@@ -7,42 +7,62 @@ ConditionPathIsDirectory=/var/cache
 Type=oneshot
 ExecStart=/usr/bin/neosnatch --snapshot=/var/cache/neosnatch/snapshot.json
 
+# --- Identity ----------------------------------------------------------
+# Drop privileges to a dedicated system user. Capabilities below let it
+# read root-only data (sudoers, /var/spool/cron, foreign /proc/<pid>/fd)
+# without ever holding broad UID 0 authority. SupplementaryGroups for
+# docker / crontab is added via a postinst-generated drop-in
+# (/etc/systemd/system/neosnatch-snapshot.service.d/groups.conf) when
+# those groups exist on the host.
+User=neosnatch
+Group=neosnatch
+
 # --- Hardening ---------------------------------------------------------
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 PrivateDevices=true
+# PrivateNetwork=true would isolate the netns and make /proc/net/tcp show
+# only loopback — defeats the whole point of port enumeration. We rely on
+# RestrictAddressFamilies + IPAddressDeny below to neutralize IP traffic.
+IPAddressDeny=any
+KeyringMode=private
+UMask=0077
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectKernelLogs=true
 ProtectControlGroups=true
 ProtectClock=true
 ProtectHostname=true
-ProtectProc=invisible
+ProtectProc=ptraceable
 ProcSubset=all
 RestrictNamespaces=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
+RemoveIPC=true
+RestrictFileSystems=@common
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged @resources
+SystemCallFilter=~@privileged @resources @reboot @swap @cpu-emulation @raw-io @mount @debug @module @obsolete @clock
 
-# Capabilities: snapshot must read other processes' /proc/*/fd to map sockets
-# to process names, and run the docker CLI. CAP_DAC_READ_SEARCH bypasses fd
-# permission checks; CAP_SYS_PTRACE allows access to /proc/<pid> for foreign
-# processes. We strip everything else.
+# Capabilities: snapshot must read other processes' /proc/*/fd to map
+# sockets to process names, and read root-only files (sudoers, user
+# crontabs). Everything else is stripped from the bounding set.
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_SYS_PTRACE
 
-# Filesystem access: only the cache dir is writable; everything else is RO.
+# Filesystem: only the cache dir is writable; everything else is RO via
+# ProtectSystem=strict + the explicit RO list. Equivalent to a chroot
+# with read-only system view + a single writable carve-out.
 ReadWritePaths=/var/cache/neosnatch
-ReadOnlyPaths=/proc /sys /var/lib/docker /run/docker.sock
+ReadOnlyPaths=/proc /sys /var/lib/docker /run/docker.sock /etc/sudoers /etc/sudoers.d /etc/cron.d /etc/cron.daily /etc/cron.hourly /etc/cron.weekly /etc/cron.monthly /var/spool/cron /var/lib/update-notifier
 
-# Networking: snapshot itself doesn't need network, but `docker network ls`
-# uses the local socket. No outbound IP traffic required.
+# Networking: snapshot itself doesn't need IP. Docker CLI talks to its
+# unix socket; netlink is needed for getifaddrs. PrivateNetwork=true
+# isolates the namespace; this list is the additional allowlist.
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
 
 # Runtime

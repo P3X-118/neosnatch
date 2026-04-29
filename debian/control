@@ -12,8 +12,7 @@ Rules-Requires-Root: no
 Package: neosnatch
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Recommends: chafa
-Description: Login-banner sysadmin stats for Linux terminals
+Description: Not your Daddy's Neofetch
  neosnatch displays operator-relevant system status on interactive shell
  login: load average, memory and disk pressure, listening services and
  their owning processes, Docker network names, failed systemd units,

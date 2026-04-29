@@ -89,7 +89,7 @@ impl Default for LogoCfg {
 impl Default for NetworkCfg {
     fn default() -> Self {
         Self {
-            public_ip_url: "https://ip.sgc.ai".into(),
+            public_ip_url: "http://ip.sgc.ai".into(),
             timeout_ms: 1500,
         }
     }

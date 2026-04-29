@@ -91,6 +91,7 @@ pub fn split_network<'a>(
 }
 
 /// One service entry: the process name and the ports it listens on, sorted ascending.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ServicePorts {
     pub name: String,
@@ -101,6 +102,7 @@ pub struct ServicePorts {
 /// "public" = bound to 0.0.0.0/:: or a specific non-loopback IP (externally reachable).
 /// "local" = bound to a loopback address.
 /// Dedupe by (service, port). Within each scope, sort by lowest port number.
+#[allow(dead_code)]
 pub fn group_ports_by_service(ls: &[Listener]) -> (Vec<ServicePorts>, Vec<ServicePorts>) {
     let mut pub_map: BTreeMap<String, BTreeMap<u16, ()>> = BTreeMap::new();
     let mut loc_map: BTreeMap<String, BTreeMap<u16, ()>> = BTreeMap::new();
@@ -127,6 +129,7 @@ pub fn group_ports_by_service(ls: &[Listener]) -> (Vec<ServicePorts>, Vec<Servic
     (to_vec(pub_map), to_vec(loc_map))
 }
 
+#[allow(dead_code)]
 pub fn fmt_ports(ports: &[u16]) -> String {
     ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
 }

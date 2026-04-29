@@ -3,12 +3,50 @@ set -e
 
 case "$1" in
     configure)
-        # Create snapshot cache dir (idempotent).
-        if [ ! -d /var/cache/neosnatch ]; then
-            install -d -o root -g root -m 0755 /var/cache/neosnatch
+        # --- System user ----------------------------------------------
+        if ! getent passwd neosnatch >/dev/null; then
+            adduser --system --no-create-home --group \
+                    --home /var/cache/neosnatch \
+                    --shell /usr/sbin/nologin \
+                    neosnatch
         fi
 
-        # Reload + enable + start the timer.
+        # --- Cache dir, owned by service user -------------------------
+        if [ ! -d /var/cache/neosnatch ]; then
+            install -d -o neosnatch -g neosnatch -m 0755 /var/cache/neosnatch
+        else
+            chown neosnatch:neosnatch /var/cache/neosnatch
+            chmod 0755 /var/cache/neosnatch
+        fi
+
+        # --- Conditional supplementary groups -------------------------
+        # Generate a unit drop-in that adds the service user to whichever
+        # of {docker, crontab} groups exist on this host. Without docker
+        # group membership, `docker network ls` would fail; without
+        # crontab group membership, /var/spool/cron/crontabs reads still
+        # work via CAP_DAC_READ_SEARCH (kept as belt-and-braces).
+        SUPP=""
+        if getent group docker  >/dev/null 2>&1; then
+            usermod -aG docker  neosnatch || true
+            SUPP="$SUPP docker"
+        fi
+        if getent group crontab >/dev/null 2>&1; then
+            usermod -aG crontab neosnatch || true
+            SUPP="$SUPP crontab"
+        fi
+        DROPIN_DIR=/etc/systemd/system/neosnatch-snapshot.service.d
+        DROPIN=$DROPIN_DIR/groups.conf
+        mkdir -p "$DROPIN_DIR"
+        if [ -n "$SUPP" ]; then
+            {
+                echo "[Service]"
+                echo "SupplementaryGroups=$SUPP"
+            } > "$DROPIN"
+        else
+            rm -f "$DROPIN"
+        fi
+
+        # --- Reload + enable + start the timer ------------------------
         if [ -d /run/systemd/system ]; then
             systemctl --system daemon-reload >/dev/null || true
             if deb-systemd-helper debian-installed neosnatch-snapshot.timer; then

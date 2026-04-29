@@ -1,3 +1,47 @@
+neosnatch (0.6.0-1) unstable; urgency=medium
+
+  * Banner restructure:
+    - Hostname rendered as a 5-row block-letter wordmark (replaces the
+      chafa-image / unicorn-ASCII default logo); centered, with the
+      "N E O S N A T C H" tag below.
+    - Title bar drops the "neosnatch ·" prefix.
+    - Top section keys justified to the same column as Resources/Storage.
+    - Daemons list moved out of the top section into Security after sudoers.
+    - Storage rows show per-mount LUKS / unencrypted status next to fs.
+    - Resources reordered: cpu, gpu, load, memory, swap.
+    - Resources & Storage bars share alignment.
+    - Network section terminates with two harmonized port blocks
+      (docker-ports and system-ports) that share scope/port/target columns;
+      the old Security `ports` row is removed.
+    - WAN-IP appears at the top of Network (default URL switched to
+      http://ip.sgc.ai — the upstream is HTTP-only).
+    - Packages line includes the package manager (apt/pacman/apk/rpm).
+    - Per-session listing in `users` plus anomalous-IP red flag from a
+      snapshot-maintained known-hosts set.
+  * Helper service (snapshot generator):
+    - Drops to dedicated `neosnatch` system user with only
+      CAP_DAC_READ_SEARCH + CAP_SYS_PTRACE.
+    - Hardening: PrivateTmp, ProtectSystem=strict, ProtectProc=ptraceable,
+      RestrictAddressFamilies=AF_UNIX AF_NETLINK, IPAddressDeny=any,
+      KeyringMode=private, UMask=0077, RestrictFileSystems=@common,
+      tightened SystemCallFilter, MemoryDenyWriteExecute.
+    - Captures listeners-with-process-names, docker network names, docker
+      container port publishes, failed units, sudoers, system + user
+      crontabs, known-login hosts (anomaly seed), and advisories.
+    - postinst creates the system user and writes a SupplementaryGroups
+      drop-in for whichever of {docker, crontab} groups exist on the host.
+    - Snapshot schema bumped to v4 (advisories, docker_container_ports,
+      sudoers, cron_jobs, known_login_hosts).
+  * Performance:
+    - Reads /var/log/wtmp by seek-from-end (~100µs vs 11.5ms).
+    - Login path never forks `apt-get`; advisories are read-only from
+      /var/lib/update-notifier/updates-available, populated by helper.
+  * CLI: --ports and --cron flags dump full listings as plain tables.
+  * Drops chafa from Recommends; --logo is a hidden no-op for backwards
+    compat.
+
+ -- SGC <oneill@sgc.ai>  Wed, 29 Apr 2026 17:55:00 +0000
+
 neosnatch (0.2.0-1) unstable; urgency=medium
 
   * Initial Debian packaging.

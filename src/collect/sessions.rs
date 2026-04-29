@@ -8,7 +8,6 @@ use std::mem::size_of;
 #[derive(Debug, Clone)]
 pub struct Session {
     pub user: String,
-    #[allow(dead_code)] // tty/pts label; surfaced when verbose session listing is enabled
     pub line: String,
     pub host: Option<String>,
     pub when: Option<String>,
@@ -123,6 +122,29 @@ pub fn last() -> Result<Option<Session>> {
         }
     }
     Ok(None)
+}
+
+/// Hosts that have appeared in wtmp at least `min_count` times. Used by the
+/// snapshot generator to seed the "known IPs" list for anomaly detection.
+pub fn known_hosts(min_count: usize) -> Result<Vec<String>> {
+    use std::collections::HashMap;
+    let recs = match read_records("/var/log/wtmp") {
+        Ok(r) => r,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for r in recs.iter() {
+        if r.ut_type != USER_PROCESS { continue; }
+        let host = cstr(&r.ut_host);
+        if host.is_empty() { continue; }
+        *counts.entry(host).or_insert(0) += 1;
+    }
+    let mut out: Vec<String> = counts.into_iter()
+        .filter(|(_, n)| *n >= min_count)
+        .map(|(h, _)| h)
+        .collect();
+    out.sort();
+    Ok(out)
 }
 
 #[allow(dead_code)]

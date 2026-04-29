@@ -1,8 +1,8 @@
 [package]
 name = "neosnatch"
-version = "0.2.0"
+version = "0.6.0"
 edition = "2021"
-description = "Login-banner sysadmin stats for Linux terminals"
+description = "Not your Daddy's Neofetch"
 license = "MIT"
 
 [[bin]]

@@ -5,7 +5,7 @@ height = 12
 symbols = "block"
 
 [network]
-public_ip_url = "https://ip.sgc.ai"
+public_ip_url = "http://ip.sgc.ai"
 timeout_ms = 1500
 
 [thresholds]

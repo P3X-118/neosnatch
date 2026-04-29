@@ -15,6 +15,10 @@ pub mod gpu;
 pub mod shell;
 pub mod processes;
 pub mod docker;
+pub mod sudoers;
+pub mod cron;
+pub mod encryption;
+pub mod services;
 pub mod demo;
 
 use crate::cli::Args;
@@ -41,10 +45,21 @@ pub struct Facts {
     pub listening_ports: Vec<ports::Listener>,
     pub advisories: Option<advisories::Advisories>,
     pub packages: Option<u64>,
+    pub packages_size_kb: Option<u64>,
+    pub packages_manager: Option<&'static str>,
+    pub packages_manual: Vec<String>,
+    pub services_non_default: Vec<services::ServiceUnit>,
+    pub encryption: Option<encryption::Encryption>,
+    pub sudoers: Vec<sudoers::SudoersRule>,
+    pub cron_jobs: Vec<cron::CronJob>,
+    #[allow(dead_code)]
+    pub anomalous_login: bool,
+    pub known_login_hosts: Vec<String>,
     pub host_info: Option<host::HostInfo>,
     pub gpus: Vec<gpu::Gpu>,
     pub shell: Option<shell::ShellInfo>,
     pub docker_networks: docker::NetworkMap,
+    pub docker_container_ports: Vec<docker::ContainerPort>,
     /// Age of the privileged snapshot if one was loaded; None if no snapshot.
     pub snapshot_age_secs: Option<u64>,
 }
@@ -76,13 +91,31 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     if let Some(s) = &snap {
         merge_listener_processes(&mut listening_ports, &s.listeners);
     }
-    let packages = if s.packages { packages::count().await } else { None };
+    let pkg_stats = if s.packages { packages::count().await } else { None };
+    let packages = pkg_stats.as_ref().map(|s| s.count);
+    let packages_size_kb = pkg_stats.as_ref().and_then(|s| s.total_kb);
+    let packages_manager = pkg_stats.as_ref().and_then(|s| s.manager);
+    let packages_manual = pkg_stats.map(|s| s.manual).unwrap_or_default();
+    let services_non_default = services::non_default(&packages_manual);
+    let encryption = Some(encryption::detect());
+
+    // Sudoers + cron come exclusively from the privileged snapshot service.
+    // Reading cron drop-ins on the login path would only ever show a partial
+    // view (root-only crontabs invisible) and split the trust boundary —
+    // keep one source of truth.
+    let mut sudoers_v: Vec<sudoers::SudoersRule> = Vec::new();
+    let mut cron_v: Vec<cron::CronJob> = Vec::new();
+    let mut anomalous_login = false;
 
     let failed_fut = async {
         if s.failed_units { systemd::failed_units().await.unwrap_or_default() } else { vec![] }
     };
+    // Advisories are now collected helper-side (see snapshot::generate). Only
+    // do a live lookup if we have no snapshot — preserves behavior on hosts
+    // without the snapshot service installed.
     let advisories_fut = async {
-        if s.advisories && want_net { advisories::check(args.cache_ttl).await } else { None }
+        let need_live = snap.is_none() && s.advisories;
+        if need_live { advisories::check(args.cache_ttl).await } else { None }
     };
     let public_ip_fut = async {
         if s.public_ip && want_net {
@@ -100,12 +133,43 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     // group, or `docker` binary unavailable), use snapshot's networks. Same for
     // failed units when systemd D-Bus call was blocked.
     let mut failed_units = failed_units;
+    let mut advisories = advisories;
     if let Some(s) = &snap {
+        if s.advisories.is_some() { advisories = s.advisories.clone(); }
         if docker_networks.by_bridge.is_empty() && !s.docker_networks.is_empty() {
             docker_networks.by_bridge = s.docker_networks.clone();
         }
         if failed_units.is_empty() && !s.failed_units.is_empty() {
             failed_units = s.failed_units.clone();
+        }
+        if !s.sudoers.is_empty() {
+            sudoers_v = s.sudoers.iter().map(|r| sudoers::SudoersRule {
+                source: r.source.clone(),
+                principal: r.principal.clone(),
+                runas: r.runas.clone(),
+                nopasswd: r.nopasswd,
+                command: r.command.clone(),
+            }).collect();
+        }
+        if !s.cron_jobs.is_empty() {
+            cron_v = s.cron_jobs.iter().map(|c| cron::CronJob {
+                source: c.source.clone(),
+                schedule: c.schedule.clone(),
+                user: c.user.clone(),
+                command: c.command.clone(),
+            }).collect();
+        }
+        // Anomaly: a recent login host that snapshot has not yet seen ≥2 times.
+        let known: std::collections::HashSet<&str> =
+            s.known_login_hosts.iter().map(String::as_str).collect();
+        let suspect = |h: &Option<String>| {
+            h.as_deref().map(|x| !x.is_empty() && !known.contains(x)).unwrap_or(false)
+        };
+        if suspect(&last_login.as_ref().and_then(|l| l.host.clone())) {
+            anomalous_login = true;
+        }
+        if sessions.iter().any(|x| suspect(&x.host)) {
+            anomalous_login = true;
         }
     }
 
@@ -129,10 +193,21 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
         listening_ports,
         advisories,
         packages,
+        packages_size_kb,
+        packages_manager,
+        packages_manual,
+        services_non_default,
+        encryption,
+        sudoers: sudoers_v,
+        cron_jobs: cron_v,
+        anomalous_login,
+        known_login_hosts: snap.as_ref().map(|s| s.known_login_hosts.clone()).unwrap_or_default(),
         host_info,
         gpus,
         shell: shell_info,
         docker_networks,
+        docker_container_ports: snap.as_ref()
+            .map(|s| s.docker_container_ports.clone()).unwrap_or_default(),
         snapshot_age_secs,
     }
 }

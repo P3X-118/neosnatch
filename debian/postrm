@@ -6,9 +6,14 @@ case "$1" in
         if [ -d /var/cache/neosnatch ]; then
             rm -rf /var/cache/neosnatch
         fi
+        rm -rf /etc/systemd/system/neosnatch-snapshot.service.d
+        if getent passwd neosnatch >/dev/null 2>&1; then
+            deluser --system neosnatch >/dev/null 2>&1 || true
+        fi
         if [ -d /run/systemd/system ]; then
             deb-systemd-helper purge neosnatch-snapshot.timer >/dev/null || true
             deb-systemd-helper unmask neosnatch-snapshot.timer >/dev/null || true
+            systemctl --system daemon-reload >/dev/null || true
         fi
         ;;
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
