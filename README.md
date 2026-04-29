@@ -3,9 +3,7 @@
             N E O S N A T C H
 ```
 
-# NEOSNATCH
-
-> Not your Daddy's Neofetch.
+# Not your Daddy's Neofetch.
 
 A Linux login banner for sysadmins. Same baseline as `neofetch` (OS, kernel,
 uptime, CPU, memory, disks) — plus everything you actually need to know
