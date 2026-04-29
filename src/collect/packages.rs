@@ -16,13 +16,28 @@ pub async fn count() -> Option<Stats> {
         return stats_dpkg().await;
     }
     if Path::new("/var/lib/pacman/local").exists() {
-        return count_pacman().await.map(|c| Stats { count: c, total_kb: None, manual: vec![], manager: Some("pacman") });
+        return count_pacman().await.map(|c| Stats {
+            count: c,
+            total_kb: None,
+            manual: vec![],
+            manager: Some("pacman"),
+        });
     }
     if Path::new("/lib/apk/db/installed").exists() {
-        return count_apk().await.map(|c| Stats { count: c, total_kb: None, manual: vec![], manager: Some("apk") });
+        return count_apk().await.map(|c| Stats {
+            count: c,
+            total_kb: None,
+            manual: vec![],
+            manager: Some("apk"),
+        });
     }
     if Path::new("/var/lib/rpm").exists() {
-        return count_rpm().await.map(|c| Stats { count: c, total_kb: None, manual: vec![], manager: Some("rpm") });
+        return count_rpm().await.map(|c| Stats {
+            count: c,
+            total_kb: None,
+            manual: vec![],
+            manager: Some("rpm"),
+        });
     }
     None
 }
@@ -42,7 +57,9 @@ async fn stats_dpkg() -> Option<Stats> {
             if has_pkg && installed {
                 count += 1;
                 total_kb = total_kb.saturating_add(size_kb);
-                if !name.is_empty() { installed_names.push(std::mem::take(&mut name)); }
+                if !name.is_empty() {
+                    installed_names.push(std::mem::take(&mut name));
+                }
             }
             installed = false;
             has_pkg = false;
@@ -60,30 +77,42 @@ async fn stats_dpkg() -> Option<Stats> {
     if has_pkg && installed {
         count += 1;
         total_kb = total_kb.saturating_add(size_kb);
-        if !name.is_empty() { installed_names.push(name); }
+        if !name.is_empty() {
+            installed_names.push(name);
+        }
     }
 
     // Apt extended_states: any package with Auto-Installed: 1 is a dep.
     // Manual packages = installed minus auto.
     let auto = parse_auto_installed().await;
-    let mut manual: Vec<String> = installed_names.into_iter()
+    let mut manual: Vec<String> = installed_names
+        .into_iter()
         .filter(|n| !auto.contains(n))
         .collect();
     manual.sort();
     manual.dedup();
 
-    Some(Stats { count, total_kb: Some(total_kb), manual, manager: Some("apt") })
+    Some(Stats {
+        count,
+        total_kb: Some(total_kb),
+        manual,
+        manager: Some("apt"),
+    })
 }
 
 async fn parse_auto_installed() -> std::collections::HashSet<String> {
     use std::collections::HashSet;
     let mut set = HashSet::new();
-    let Ok(raw) = fs::read_to_string("/var/lib/apt/extended_states").await else { return set; };
+    let Ok(raw) = fs::read_to_string("/var/lib/apt/extended_states").await else {
+        return set;
+    };
     let mut name = String::new();
     let mut auto = false;
     for line in raw.lines() {
         if line.is_empty() {
-            if auto && !name.is_empty() { set.insert(std::mem::take(&mut name)); }
+            if auto && !name.is_empty() {
+                set.insert(std::mem::take(&mut name));
+            }
             name.clear();
             auto = false;
         } else if let Some(v) = line.strip_prefix("Package:") {
@@ -92,7 +121,9 @@ async fn parse_auto_installed() -> std::collections::HashSet<String> {
             auto = v.trim() == "1";
         }
     }
-    if auto && !name.is_empty() { set.insert(name); }
+    if auto && !name.is_empty() {
+        set.insert(name);
+    }
     set
 }
 
@@ -104,7 +135,7 @@ async fn count_pacman() -> Option<u64> {
             n += 1;
         }
     }
-    if n > 0 { n -= 1; } // ALPM_DB_VERSION sentinel
+    n = n.saturating_sub(1); // ALPM_DB_VERSION sentinel
     Some(n)
 }
 
@@ -116,7 +147,11 @@ async fn count_apk() -> Option<u64> {
 async fn count_rpm() -> Option<u64> {
     let out = tokio::process::Command::new("rpm")
         .args(["-qa", "--queryformat", ".\n"])
-        .output().await.ok()?;
-    if !out.status.success() { return None; }
+        .output()
+        .await
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
     Some(out.stdout.iter().filter(|&&b| b == b'\n').count() as u64)
 }

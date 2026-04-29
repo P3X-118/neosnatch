@@ -36,9 +36,15 @@ pub async fn check(ttl_secs: u64) -> Option<Advisories> {
 
 async fn which(bin: &str) -> Option<String> {
     let out = Command::new("which").arg(bin).output().await.ok()?;
-    if !out.status.success() { return None; }
+    if !out.status.success() {
+        return None;
+    }
     let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    if s.is_empty() { None } else { Some(s) }
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 async fn debian() -> Option<Advisories> {
@@ -52,11 +58,16 @@ async fn debian() -> Option<Advisories> {
     let mut sec = 0u32;
     for line in raw.lines() {
         if let Some(n) = first_number(line) {
-            if line.contains("security") { sec = n; }
-            else if total == 0 { total = n; }
+            if line.contains("security") {
+                sec = n;
+            } else if total == 0 {
+                total = n;
+            }
         }
     }
-    if total == 0 && sec == 0 { return None; }
+    if total == 0 && sec == 0 {
+        return None;
+    }
     Some(Advisories {
         source: "apt".into(),
         critical: 0,
@@ -68,16 +79,27 @@ async fn debian() -> Option<Advisories> {
 async fn dnf() -> Option<Advisories> {
     let out = Command::new("dnf")
         .args(["-q", "updateinfo", "summary", "--available"])
-        .output().await.ok()?;
+        .output()
+        .await
+        .ok()?;
     let s = String::from_utf8_lossy(&out.stdout);
-    let mut a = Advisories { source: "dnf".into(), ..Default::default() };
+    let mut a = Advisories {
+        source: "dnf".into(),
+        ..Default::default()
+    };
     for line in s.lines() {
         let l = line.trim();
         if let Some(n) = trailing_number(l) {
             let lower = l.to_ascii_lowercase();
-            if lower.contains("critical") { a.critical = n; a.total += n; }
-            else if lower.contains("important") || lower.contains("high") { a.high = n; a.total += n; }
-            else if lower.contains("security") { a.total += n; }
+            if lower.contains("critical") {
+                a.critical = n;
+                a.total += n;
+            } else if lower.contains("important") || lower.contains("high") {
+                a.high = n;
+                a.total += n;
+            } else if lower.contains("security") {
+                a.total += n;
+            }
         }
     }
     Some(a)
@@ -86,13 +108,21 @@ async fn dnf() -> Option<Advisories> {
 async fn arch() -> Option<Advisories> {
     let out = Command::new("arch-audit").arg("-q").output().await.ok()?;
     let s = String::from_utf8_lossy(&out.stdout);
-    let mut a = Advisories { source: "arch-audit".into(), ..Default::default() };
+    let mut a = Advisories {
+        source: "arch-audit".into(),
+        ..Default::default()
+    };
     for line in s.lines() {
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         a.total += 1;
         let lower = line.to_ascii_lowercase();
-        if lower.contains("critical") { a.critical += 1; }
-        else if lower.contains("high") { a.high += 1; }
+        if lower.contains("critical") {
+            a.critical += 1;
+        } else if lower.contains("high") {
+            a.high += 1;
+        }
     }
     Some(a)
 }
@@ -101,17 +131,26 @@ async fn alpine() -> Option<Advisories> {
     // apk doesn't ship a security feed; fall back to upgrade-count signal.
     let out = Command::new("apk")
         .args(["version", "-l", "<"])
-        .output().await.ok()?;
+        .output()
+        .await
+        .ok()?;
     let s = String::from_utf8_lossy(&out.stdout);
     let total = s.lines().filter(|l| !l.starts_with("Installed")).count() as u32;
-    Some(Advisories { source: "apk".into(), total, ..Default::default() })
+    Some(Advisories {
+        source: "apk".into(),
+        total,
+        ..Default::default()
+    })
 }
 
 fn first_number(s: &str) -> Option<u32> {
     let mut digits = String::new();
     for c in s.chars() {
-        if c.is_ascii_digit() { digits.push(c); }
-        else if !digits.is_empty() { break; }
+        if c.is_ascii_digit() {
+            digits.push(c);
+        } else if !digits.is_empty() {
+            break;
+        }
     }
     digits.parse().ok()
 }

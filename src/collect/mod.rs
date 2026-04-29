@@ -1,25 +1,25 @@
-pub mod os;
-pub mod cpu;
-pub mod mem;
-pub mod disk;
-pub mod net;
-pub mod uptime;
-pub mod sessions;
-pub mod systemd;
-pub mod ports;
 pub mod advisories;
-pub mod public_ip;
-pub mod packages;
-pub mod host;
-pub mod gpu;
-pub mod shell;
-pub mod processes;
-pub mod docker;
-pub mod sudoers;
+pub mod cpu;
 pub mod cron;
-pub mod encryption;
-pub mod services;
 pub mod demo;
+pub mod disk;
+pub mod docker;
+pub mod encryption;
+pub mod gpu;
+pub mod host;
+pub mod mem;
+pub mod net;
+pub mod os;
+pub mod packages;
+pub mod ports;
+pub mod processes;
+pub mod public_ip;
+pub mod services;
+pub mod sessions;
+pub mod shell;
+pub mod sudoers;
+pub mod systemd;
+pub mod uptime;
 
 use crate::cli::Args;
 use crate::config::Config;
@@ -65,7 +65,9 @@ pub struct Facts {
 }
 
 pub async fn gather(cfg: &Config, args: &Args) -> Facts {
-    if args.demo { return demo::fixture(); }
+    if args.demo {
+        return demo::fixture();
+    }
     let want_net = !args.offline;
     let s = &cfg.show;
 
@@ -76,22 +78,50 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     let user = current_user();
     let os = if s.os { os::detect().ok() } else { None };
     let (kernel, kernel_build, arch) = uname_full();
-    let host_info = if s.model || s.virt { Some(host::detect()) } else { None };
+    let host_info = if s.model || s.virt {
+        Some(host::detect())
+    } else {
+        None
+    };
     let gpus = if s.gpu { gpu::list() } else { vec![] };
     let shell_info = if s.shell { shell::detect() } else { None };
     let uptime = if s.uptime { uptime::read().ok() } else { None };
     let load = if s.load { cpu::load().ok() } else { None };
     let cpu = if s.cpu { cpu::info().ok() } else { None };
     let mem = if s.memory { mem::read().ok() } else { None };
-    let disks = if s.disk { disk::list().unwrap_or_default() } else { vec![] };
-    let interfaces = if s.network { net::list().unwrap_or_default() } else { vec![] };
-    let sessions = if s.sessions { sessions::active().unwrap_or_default() } else { vec![] };
-    let last_login = if s.last_login { sessions::last().ok().flatten() } else { None };
-    let mut listening_ports = if s.listening_ports { ports::list().unwrap_or_default() } else { vec![] };
+    let disks = if s.disk {
+        disk::list().unwrap_or_default()
+    } else {
+        vec![]
+    };
+    let interfaces = if s.network {
+        net::list().unwrap_or_default()
+    } else {
+        vec![]
+    };
+    let sessions = if s.sessions {
+        sessions::active().unwrap_or_default()
+    } else {
+        vec![]
+    };
+    let last_login = if s.last_login {
+        sessions::last().ok().flatten()
+    } else {
+        None
+    };
+    let mut listening_ports = if s.listening_ports {
+        ports::list().unwrap_or_default()
+    } else {
+        vec![]
+    };
     if let Some(s) = &snap {
         merge_listener_processes(&mut listening_ports, &s.listeners);
     }
-    let pkg_stats = if s.packages { packages::count().await } else { None };
+    let pkg_stats = if s.packages {
+        packages::count().await
+    } else {
+        None
+    };
     let packages = pkg_stats.as_ref().map(|s| s.count);
     let packages_size_kb = pkg_stats.as_ref().and_then(|s| s.total_kb);
     let packages_manager = pkg_stats.as_ref().and_then(|s| s.manager);
@@ -108,22 +138,36 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     let mut anomalous_login = false;
 
     let failed_fut = async {
-        if s.failed_units { systemd::failed_units().await.unwrap_or_default() } else { vec![] }
+        if s.failed_units {
+            systemd::failed_units().await.unwrap_or_default()
+        } else {
+            vec![]
+        }
     };
     // Advisories are now collected helper-side (see snapshot::generate). Only
     // do a live lookup if we have no snapshot — preserves behavior on hosts
     // without the snapshot service installed.
     let advisories_fut = async {
         let need_live = snap.is_none() && s.advisories;
-        if need_live { advisories::check(args.cache_ttl).await } else { None }
+        if need_live {
+            advisories::check(args.cache_ttl).await
+        } else {
+            None
+        }
     };
     let public_ip_fut = async {
         if s.public_ip && want_net {
             public_ip::fetch(&cfg.network, args.cache_ttl).await
-        } else { None }
+        } else {
+            None
+        }
     };
     let docker_fut = async {
-        if s.network { docker::lookup().await } else { docker::NetworkMap::default() }
+        if s.network {
+            docker::lookup().await
+        } else {
+            docker::NetworkMap::default()
+        }
     };
 
     let (failed_units, advisories, public_ip, mut docker_networks) =
@@ -135,7 +179,9 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
     let mut failed_units = failed_units;
     let mut advisories = advisories;
     if let Some(s) = &snap {
-        if s.advisories.is_some() { advisories = s.advisories.clone(); }
+        if s.advisories.is_some() {
+            advisories = s.advisories.clone();
+        }
         if docker_networks.by_bridge.is_empty() && !s.docker_networks.is_empty() {
             docker_networks.by_bridge = s.docker_networks.clone();
         }
@@ -143,27 +189,37 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
             failed_units = s.failed_units.clone();
         }
         if !s.sudoers.is_empty() {
-            sudoers_v = s.sudoers.iter().map(|r| sudoers::SudoersRule {
-                source: r.source.clone(),
-                principal: r.principal.clone(),
-                runas: r.runas.clone(),
-                nopasswd: r.nopasswd,
-                command: r.command.clone(),
-            }).collect();
+            sudoers_v = s
+                .sudoers
+                .iter()
+                .map(|r| sudoers::SudoersRule {
+                    source: r.source.clone(),
+                    principal: r.principal.clone(),
+                    runas: r.runas.clone(),
+                    nopasswd: r.nopasswd,
+                    command: r.command.clone(),
+                })
+                .collect();
         }
         if !s.cron_jobs.is_empty() {
-            cron_v = s.cron_jobs.iter().map(|c| cron::CronJob {
-                source: c.source.clone(),
-                schedule: c.schedule.clone(),
-                user: c.user.clone(),
-                command: c.command.clone(),
-            }).collect();
+            cron_v = s
+                .cron_jobs
+                .iter()
+                .map(|c| cron::CronJob {
+                    source: c.source.clone(),
+                    schedule: c.schedule.clone(),
+                    user: c.user.clone(),
+                    command: c.command.clone(),
+                })
+                .collect();
         }
         // Anomaly: a recent login host that snapshot has not yet seen ≥2 times.
         let known: std::collections::HashSet<&str> =
             s.known_login_hosts.iter().map(String::as_str).collect();
         let suspect = |h: &Option<String>| {
-            h.as_deref().map(|x| !x.is_empty() && !known.contains(x)).unwrap_or(false)
+            h.as_deref()
+                .map(|x| !x.is_empty() && !known.contains(x))
+                .unwrap_or(false)
         };
         if suspect(&last_login.as_ref().and_then(|l| l.host.clone())) {
             anomalous_login = true;
@@ -201,13 +257,18 @@ pub async fn gather(cfg: &Config, args: &Args) -> Facts {
         sudoers: sudoers_v,
         cron_jobs: cron_v,
         anomalous_login,
-        known_login_hosts: snap.as_ref().map(|s| s.known_login_hosts.clone()).unwrap_or_default(),
+        known_login_hosts: snap
+            .as_ref()
+            .map(|s| s.known_login_hosts.clone())
+            .unwrap_or_default(),
         host_info,
         gpus,
         shell: shell_info,
         docker_networks,
-        docker_container_ports: snap.as_ref()
-            .map(|s| s.docker_container_ports.clone()).unwrap_or_default(),
+        docker_container_ports: snap
+            .as_ref()
+            .map(|s| s.docker_container_ports.clone())
+            .unwrap_or_default(),
         snapshot_age_secs,
     }
 }
@@ -227,7 +288,9 @@ fn merge_listener_processes(
         }
     }
     for l in live.iter_mut() {
-        if l.process.is_some() { continue; }
+        if l.process.is_some() {
+            continue;
+        }
         if let Some(name) = by_pp.get(&(l.proto.to_string(), l.port)) {
             l.process = Some((*name).to_string());
         }
@@ -235,12 +298,19 @@ fn merge_listener_processes(
 }
 
 fn hostname() -> Option<String> {
-    rustix::system::uname().nodename().to_str().ok().map(str::to_owned)
+    rustix::system::uname()
+        .nodename()
+        .to_str()
+        .ok()
+        .map(str::to_owned)
 }
 
 fn current_user() -> Option<String> {
     let uid = nix::unistd::getuid();
-    nix::unistd::User::from_uid(uid).ok().flatten().map(|u| u.name)
+    nix::unistd::User::from_uid(uid)
+        .ok()
+        .flatten()
+        .map(|u| u.name)
 }
 
 fn uname_full() -> (Option<String>, Option<String>, Option<String>) {

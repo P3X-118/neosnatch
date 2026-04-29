@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Serialize, Deserialize)]
-struct Cached { ip: String }
+struct Cached {
+    ip: String,
+}
 
 pub async fn fetch(cfg: &NetworkCfg, ttl_secs: u64) -> Option<String> {
     let ttl = Duration::from_secs(ttl_secs);
@@ -16,10 +18,14 @@ pub async fn fetch(cfg: &NetworkCfg, ttl_secs: u64) -> Option<String> {
         .build()
         .ok()?;
     let resp = client.get(&cfg.public_ip_url).send().await.ok()?;
-    if !resp.status().is_success() { return None; }
+    if !resp.status().is_success() {
+        return None;
+    }
     let body = resp.text().await.ok()?;
     let ip = body.trim().to_string();
-    if ip.is_empty() { return None; }
+    if ip.is_empty() {
+        return None;
+    }
     let _ = cache::write("public_ip", &Cached { ip: ip.clone() });
     Some(ip)
 }

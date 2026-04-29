@@ -10,8 +10,8 @@ use std::path::Path;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SudoersRule {
     pub source: String,
-    pub principal: String,   // user, %group, or alias
-    pub runas: String,       // "(root)" / "(ALL)" / "(ALL : ALL)"
+    pub principal: String, // user, %group, or alias
+    pub runas: String,     // "(root)" / "(ALL)" / "(ALL : ALL)"
     pub nopasswd: bool,
     pub command: String,
 }
@@ -25,9 +25,13 @@ pub fn collect_all() -> Vec<SudoersRule> {
     if let Ok(rd) = fs::read_dir(dir) {
         for ent in rd.flatten() {
             let path = ent.path();
-            if !path.is_file() { continue; }
+            if !path.is_file() {
+                continue;
+            }
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if name.is_empty() || name.starts_with('.') || name.ends_with('~') { continue; }
+            if name.is_empty() || name.starts_with('.') || name.ends_with('~') {
+                continue;
+            }
             if let Ok(s) = fs::read_to_string(&path) {
                 parse_file(&s, &path.display().to_string(), &mut rules);
             }
@@ -39,11 +43,19 @@ pub fn collect_all() -> Vec<SudoersRule> {
 fn parse_file(raw: &str, source: &str, out: &mut Vec<SudoersRule>) {
     for line in raw.lines() {
         let t = line.trim();
-        if t.is_empty() || t.starts_with('#') { continue; }
-        if t.starts_with("Defaults") || t.starts_with("Cmnd_Alias")
-            || t.starts_with("Host_Alias") || t.starts_with("User_Alias")
-            || t.starts_with("Runas_Alias") || t.starts_with("@includedir")
-            || t.starts_with("@include") { continue; }
+        if t.is_empty() || t.starts_with('#') {
+            continue;
+        }
+        if t.starts_with("Defaults")
+            || t.starts_with("Cmnd_Alias")
+            || t.starts_with("Host_Alias")
+            || t.starts_with("User_Alias")
+            || t.starts_with("Runas_Alias")
+            || t.starts_with("@includedir")
+            || t.starts_with("@include")
+        {
+            continue;
+        }
         if let Some(rule) = parse_rule(t, source) {
             out.push(rule);
         }
@@ -66,9 +78,18 @@ fn parse_rule(line: &str, source: &str) -> Option<SudoersRule> {
         }
     }
     let mut nopasswd = false;
-    for tag in ["NOPASSWD:", "PASSWD:", "SETENV:", "NOSETENV:", "EXEC:", "NOEXEC:"] {
+    for tag in [
+        "NOPASSWD:",
+        "PASSWD:",
+        "SETENV:",
+        "NOSETENV:",
+        "EXEC:",
+        "NOEXEC:",
+    ] {
         if let Some(stripped) = spec.strip_prefix(tag) {
-            if tag == "NOPASSWD:" { nopasswd = true; }
+            if tag == "NOPASSWD:" {
+                nopasswd = true;
+            }
             spec = stripped.trim().to_string();
         }
     }

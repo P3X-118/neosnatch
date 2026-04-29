@@ -20,12 +20,18 @@ pub fn info() -> Result<CpuInfo> {
     for line in raw.lines() {
         if let Some(v) = line.strip_prefix("model name") {
             if model.is_empty() {
-                model = v.trim_start_matches(|c: char| c == ':' || c.is_whitespace()).to_string();
+                model = v
+                    .trim_start_matches(|c: char| c == ':' || c.is_whitespace())
+                    .to_string();
             }
         }
-        if line.starts_with("processor") { cores += 1; }
+        if line.starts_with("processor") {
+            cores += 1;
+        }
     }
-    if model.is_empty() { model = "Unknown CPU".into(); }
+    if model.is_empty() {
+        model = "Unknown CPU".into();
+    }
     Ok(CpuInfo { model, cores })
 }
 

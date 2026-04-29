@@ -33,20 +33,32 @@ pub fn non_default(manual_pkgs: &[String]) -> Vec<ServiceUnit> {
     let mut out: Vec<ServiceUnit> = Vec::new();
 
     for wants in WANTS_DIRS {
-        let Ok(rd) = fs::read_dir(wants) else { continue; };
+        let Ok(rd) = fs::read_dir(wants) else {
+            continue;
+        };
         for ent in rd.flatten() {
             let path = ent.path();
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else { continue; };
-            if !name.ends_with(".service") { continue; }
-            if seen.contains(name) { continue; }
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            if !name.ends_with(".service") {
+                continue;
+            }
+            if seen.contains(name) {
+                continue;
+            }
 
             let resolved = resolve_link(&path);
-            let pkg = path_to_pkg.get(resolved.to_string_lossy().as_ref()).cloned();
+            let pkg = path_to_pkg
+                .get(resolved.to_string_lossy().as_ref())
+                .cloned();
 
             let admin_added = resolved.starts_with("/etc/systemd/system")
                 && !resolved.to_string_lossy().contains(".wants/");
             let manual_pkg = pkg.as_deref().map(|p| manual.contains(p)).unwrap_or(false);
-            if !admin_added && !manual_pkg { continue; }
+            if !admin_added && !manual_pkg {
+                continue;
+            }
 
             seen.insert(name.to_string());
             out.push(ServiceUnit {
@@ -62,21 +74,33 @@ pub fn non_default(manual_pkgs: &[String]) -> Vec<ServiceUnit> {
 fn resolve_link(p: &std::path::Path) -> PathBuf {
     match fs::read_link(p) {
         Ok(t) if t.is_absolute() => t,
-        Ok(t) => p.parent().map(|d| d.join(&t)).unwrap_or(t)
-                    .canonicalize().unwrap_or_else(|_| p.to_path_buf()),
+        Ok(t) => p
+            .parent()
+            .map(|d| d.join(&t))
+            .unwrap_or(t)
+            .canonicalize()
+            .unwrap_or_else(|_| p.to_path_buf()),
         Err(_) => p.to_path_buf(),
     }
 }
 
 fn build_dpkg_path_index() -> HashMap<String, String> {
     let mut map = HashMap::new();
-    let Ok(rd) = fs::read_dir("/var/lib/dpkg/info") else { return map; };
+    let Ok(rd) = fs::read_dir("/var/lib/dpkg/info") else {
+        return map;
+    };
     for ent in rd.flatten() {
         let path = ent.path();
-        let Some(file) = path.file_name().and_then(|n| n.to_str()) else { continue; };
-        let Some(stem) = file.strip_suffix(".list") else { continue; };
+        let Some(file) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(stem) = file.strip_suffix(".list") else {
+            continue;
+        };
         let pkg = stem.split(':').next().unwrap_or(stem).to_string();
-        let Ok(content) = fs::read_to_string(&path) else { continue; };
+        let Ok(content) = fs::read_to_string(&path) else {
+            continue;
+        };
         for line in content.lines() {
             if line.ends_with(".service") {
                 map.insert(line.to_string(), pkg.clone());

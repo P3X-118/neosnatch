@@ -20,7 +20,9 @@ pub fn read<T: DeserializeOwned>(key: &str, ttl: Duration) -> Option<T> {
 }
 
 pub fn write<T: Serialize>(key: &str, value: &T) -> Result<()> {
-    let Some(dir) = cache_dir() else { return Ok(()); };
+    let Some(dir) = cache_dir() else {
+        return Ok(());
+    };
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(format!("{key}.json"));
     let raw = serde_json::to_string(value)?;

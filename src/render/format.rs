@@ -7,17 +7,31 @@ pub fn human_bytes(b: u64) -> String {
     const U: [&str; 5] = ["B", "K", "M", "G", "T"];
     let mut v = b as f64;
     let mut i = 0;
-    while v >= 1024.0 && i < U.len() - 1 { v /= 1024.0; i += 1; }
-    if v >= 100.0 || i == 0 { format!("{:.0}{}", v, U[i]) }
-    else { format!("{:.1}{}", v, U[i]) }
+    while v >= 1024.0 && i < U.len() - 1 {
+        v /= 1024.0;
+        i += 1;
+    }
+    if v >= 100.0 || i == 0 {
+        format!("{:.0}{}", v, U[i])
+    } else {
+        format!("{:.1}{}", v, U[i])
+    }
 }
 
 /// Strip vendor prefix from a model string. e.g. ("Dell Inc.", "Dell PowerEdge R610") → "PowerEdge R610".
 pub fn strip_vendor(vendor: &str, model: &str) -> String {
-    let v_words: Vec<&str> = vendor.split_whitespace()
-        .filter(|w| !matches!(*w, "Inc." | "Inc" | "Corp." | "Corp" | "LLC" | "Ltd" | "Ltd."))
+    let v_words: Vec<&str> = vendor
+        .split_whitespace()
+        .filter(|w| {
+            !matches!(
+                *w,
+                "Inc." | "Inc" | "Corp." | "Corp" | "LLC" | "Ltd" | "Ltd."
+            )
+        })
         .collect();
-    if v_words.is_empty() { return model.to_string(); }
+    if v_words.is_empty() {
+        return model.to_string();
+    }
     let m_words: Vec<&str> = model.split_whitespace().collect();
     if m_words.starts_with(&v_words[..]) {
         m_words[v_words.len()..].join(" ")
@@ -118,9 +132,13 @@ pub fn group_ports_by_service(ls: &[Listener]) -> (Vec<ServicePorts>, Vec<Servic
     }
 
     let to_vec = |m: BTreeMap<String, BTreeMap<u16, ()>>| -> Vec<ServicePorts> {
-        let mut v: Vec<ServicePorts> = m.into_iter().map(|(name, ports)| ServicePorts {
-            name, ports: ports.keys().copied().collect()
-        }).collect();
+        let mut v: Vec<ServicePorts> = m
+            .into_iter()
+            .map(|(name, ports)| ServicePorts {
+                name,
+                ports: ports.keys().copied().collect(),
+            })
+            .collect();
         // Sort by lowest port (ops scan "what's on 22, 80, 443, ..." first).
         v.sort_by_key(|s| s.ports.first().copied().unwrap_or(u16::MAX));
         v
@@ -131,18 +149,29 @@ pub fn group_ports_by_service(ls: &[Listener]) -> (Vec<ServicePorts>, Vec<Servic
 
 #[allow(dead_code)]
 pub fn fmt_ports(ports: &[u16]) -> String {
-    ports.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ")
+    ports
+        .iter()
+        .map(|p| p.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub fn iface_addrs(ifi: &IfaceInfo) -> String {
-    ifi.addrs.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ")
+    ifi.addrs
+        .iter()
+        .map(|a| a.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub fn gpu_label(g: &crate::collect::gpu::Gpu) -> String {
     // model is "vendor:device" hex; sometimes a name parenthetical (in demo).
     if g.model.contains('(') {
         // model already includes a friendly name
-        let pretty = g.model.split('(').nth(1)
+        let pretty = g
+            .model
+            .split('(')
+            .nth(1)
             .and_then(|s| s.strip_suffix(')'))
             .unwrap_or(&g.model)
             .trim();

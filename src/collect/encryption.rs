@@ -28,7 +28,10 @@ pub fn detect() -> Encryption {
     let mut out: Vec<MountStatus> = Vec::new();
     for target in ["/", "/boot"] {
         if let Some(dev) = source_for(target, &raw) {
-            out.push(MountStatus { mount: target.into(), status: classify(&dev) });
+            out.push(MountStatus {
+                mount: target.into(),
+                status: classify(&dev),
+            });
         }
     }
     Encryption { mounts: out }
@@ -48,7 +51,9 @@ fn classify(dev: &str) -> Status {
     let Some(name) = dev.strip_prefix("/dev/mapper/") else {
         return Status::Unencrypted;
     };
-    let Some(uuid) = lookup_dm_uuid(name) else { return Status::Unknown };
+    let Some(uuid) = lookup_dm_uuid(name) else {
+        return Status::Unknown;
+    };
     if let Some(rest) = uuid.strip_prefix("CRYPT-") {
         let kind = rest.split('-').next().unwrap_or("CRYPT").to_string();
         Status::Encrypted(kind)
@@ -62,10 +67,17 @@ fn lookup_dm_uuid(name: &str) -> Option<String> {
     for ent in rd.flatten() {
         let p = ent.path();
         let bn = p.file_name()?.to_str()?.to_string();
-        if !bn.starts_with("dm-") { continue; }
+        if !bn.starts_with("dm-") {
+            continue;
+        }
         let nm = fs::read_to_string(p.join("dm/name")).unwrap_or_default();
         if nm.trim() == name {
-            return Some(fs::read_to_string(p.join("dm/uuid")).unwrap_or_default().trim().to_string());
+            return Some(
+                fs::read_to_string(p.join("dm/uuid"))
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string(),
+            );
         }
     }
     None

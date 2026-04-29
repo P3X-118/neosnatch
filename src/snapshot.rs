@@ -45,15 +45,17 @@ pub struct SnapshotListener {
 pub fn read(path: &Path) -> Option<Snapshot> {
     let raw = std::fs::read_to_string(path).ok()?;
     let snap: Snapshot = serde_json::from_str(&raw).ok()?;
-    if snap.schema != SCHEMA_VERSION { return None; }
+    if snap.schema != SCHEMA_VERSION {
+        return None;
+    }
     Some(snap)
 }
 
 pub fn write_atomic(path: &Path, snap: &Snapshot) -> Result<()> {
-    let parent = path.parent()
+    let parent = path
+        .parent()
         .ok_or_else(|| anyhow::anyhow!("snapshot path has no parent: {}", path.display()))?;
-    std::fs::create_dir_all(parent)
-        .with_context(|| format!("create {}", parent.display()))?;
+    std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     let raw = serde_json::to_string_pretty(snap)?;
     let tmp = path.with_extension("json.tmp");
     std::fs::write(&tmp, raw).with_context(|| format!("write {}", tmp.display()))?;
@@ -86,12 +88,15 @@ pub async fn generate(out: &Path) -> Result<()> {
     // login-side cache by passing TTL=0; this is the authoritative read.
     let advisories = crate::collect::advisories::check(0).await;
 
-    let listeners = listeners_live.into_iter().map(|l| SnapshotListener {
-        proto: l.proto.to_string(),
-        addr: l.addr.to_string(),
-        port: l.port,
-        process: l.process,
-    }).collect();
+    let listeners = listeners_live
+        .into_iter()
+        .map(|l| SnapshotListener {
+            proto: l.proto.to_string(),
+            addr: l.addr.to_string(),
+            port: l.port,
+            process: l.process,
+        })
+        .collect();
 
     let snap = Snapshot {
         schema: SCHEMA_VERSION,

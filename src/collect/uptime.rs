@@ -21,7 +21,9 @@ impl Uptime {
 
 pub fn read() -> Result<Uptime> {
     let raw = std::fs::read_to_string("/proc/uptime").context("read /proc/uptime")?;
-    let secs = raw.split_whitespace().next()
+    let secs = raw
+        .split_whitespace()
+        .next()
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(0.0) as u64;
     Ok(Uptime { secs })

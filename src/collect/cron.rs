@@ -35,11 +35,18 @@ fn collect_files() -> Vec<CronJob> {
             parse_system(&s, &entry.display().to_string(), &mut jobs);
         }
     }
-    for dir in ["/etc/cron.hourly", "/etc/cron.daily", "/etc/cron.weekly", "/etc/cron.monthly"] {
+    for dir in [
+        "/etc/cron.hourly",
+        "/etc/cron.daily",
+        "/etc/cron.weekly",
+        "/etc/cron.monthly",
+    ] {
         let schedule = dir.rsplit('.').next().unwrap_or("");
         for entry in read_dir(dir) {
             if let Some(name) = entry.file_name().and_then(|n| n.to_str()) {
-                if name.starts_with('.') || name == "0anacron" { continue; }
+                if name.starts_with('.') || name == "0anacron" {
+                    continue;
+                }
                 jobs.push(CronJob {
                     source: dir.to_string(),
                     schedule: schedule.to_string(),
@@ -57,7 +64,11 @@ pub fn collect_all() -> Vec<CronJob> {
     let spool = Path::new("/var/spool/cron/crontabs");
     if spool.is_dir() {
         for entry in read_dir(spool) {
-            let user = entry.file_name().and_then(|n| n.to_str()).unwrap_or("?").to_string();
+            let user = entry
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("?")
+                .to_string();
             if let Ok(s) = fs::read_to_string(&entry) {
                 parse_user(&s, &format!("user:{user}"), &user, &mut jobs);
             }
@@ -67,26 +78,41 @@ pub fn collect_all() -> Vec<CronJob> {
 }
 
 fn read_dir<P: AsRef<Path>>(p: P) -> Vec<PathBuf> {
-    let Ok(rd) = fs::read_dir(p) else { return Vec::new(); };
-    rd.flatten().map(|e| e.path()).filter(|p| p.is_file()).collect()
+    let Ok(rd) = fs::read_dir(p) else {
+        return Vec::new();
+    };
+    rd.flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .collect()
 }
 
 fn is_skippable(line: &str) -> bool {
     let t = line.trim();
-    t.is_empty() || t.starts_with('#')
-        || t.starts_with("SHELL=") || t.starts_with("PATH=")
-        || t.starts_with("MAILTO=") || t.starts_with("HOME=") || t.starts_with("LOGNAME=")
-        || t.starts_with("RANDOM_DELAY=") || t.starts_with("START_HOURS_RANGE=")
+    t.is_empty()
+        || t.starts_with('#')
+        || t.starts_with("SHELL=")
+        || t.starts_with("PATH=")
+        || t.starts_with("MAILTO=")
+        || t.starts_with("HOME=")
+        || t.starts_with("LOGNAME=")
+        || t.starts_with("RANDOM_DELAY=")
+        || t.starts_with("START_HOURS_RANGE=")
 }
 
 fn parse_system(raw: &str, source: &str, out: &mut Vec<CronJob>) {
     for line in raw.lines() {
-        if is_skippable(line) { continue; }
+        if is_skippable(line) {
+            continue;
+        }
         let (schedule, rest) = match split_schedule(line) {
-            Some(v) => v, None => continue,
+            Some(v) => v,
+            None => continue,
         };
         let parts: Vec<&str> = rest.splitn(2, char::is_whitespace).collect();
-        if parts.len() != 2 { continue; }
+        if parts.len() != 2 {
+            continue;
+        }
         out.push(CronJob {
             source: source.to_string(),
             schedule,
@@ -98,9 +124,12 @@ fn parse_system(raw: &str, source: &str, out: &mut Vec<CronJob>) {
 
 fn parse_user(raw: &str, source: &str, user: &str, out: &mut Vec<CronJob>) {
     for line in raw.lines() {
-        if is_skippable(line) { continue; }
+        if is_skippable(line) {
+            continue;
+        }
         let (schedule, rest) = match split_schedule(line) {
-            Some(v) => v, None => continue,
+            Some(v) => v,
+            None => continue,
         };
         out.push(CronJob {
             source: source.to_string(),
@@ -113,9 +142,13 @@ fn parse_user(raw: &str, source: &str, user: &str, out: &mut Vec<CronJob>) {
 
 fn parse_anacron(raw: &str, source: &str, out: &mut Vec<CronJob>) {
     for line in raw.lines() {
-        if is_skippable(line) { continue; }
+        if is_skippable(line) {
+            continue;
+        }
         let cols: Vec<&str> = line.split_whitespace().collect();
-        if cols.len() < 4 { continue; }
+        if cols.len() < 4 {
+            continue;
+        }
         out.push(CronJob {
             source: source.to_string(),
             schedule: format!("every {}d", cols[0]),
@@ -136,6 +169,8 @@ fn split_schedule(line: &str) -> Option<(String, String)> {
         return Some((sched, rest));
     }
     let cols: Vec<&str> = trimmed.splitn(6, char::is_whitespace).collect();
-    if cols.len() != 6 { return None; }
+    if cols.len() != 6 {
+        return None;
+    }
     Some((cols[..5].join(" "), cols[5].to_string()))
 }

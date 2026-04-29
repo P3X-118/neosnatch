@@ -16,7 +16,9 @@ const CACHE_TTL_SECS: u64 = 24 * 3600;
 const CACHE_KEY: &str = "docker_networks";
 
 pub async fn lookup() -> NetworkMap {
-    if !docker_present() { return NetworkMap::default(); }
+    if !docker_present() {
+        return NetworkMap::default();
+    }
     if let Some(c) = cache::read::<NetworkMap>(CACHE_KEY, Duration::from_secs(CACHE_TTL_SECS)) {
         return c;
     }
@@ -43,25 +45,43 @@ pub struct ContainerPort {
 }
 
 pub async fn container_ports() -> Vec<ContainerPort> {
-    if !docker_present() { return Vec::new(); }
+    if !docker_present() {
+        return Vec::new();
+    }
     let Ok(out) = Command::new("docker")
-        .args(["ps", "--no-trunc", "--format", "{{.Names}}\t{{.Networks}}\t{{.Ports}}"])
-        .output().await
-    else { return Vec::new(); };
-    if !out.status.success() { return Vec::new(); }
+        .args([
+            "ps",
+            "--no-trunc",
+            "--format",
+            "{{.Names}}\t{{.Networks}}\t{{.Ports}}",
+        ])
+        .output()
+        .await
+    else {
+        return Vec::new();
+    };
+    if !out.status.success() {
+        return Vec::new();
+    }
     let raw = String::from_utf8_lossy(&out.stdout);
 
     let mut result = Vec::new();
     for line in raw.lines() {
         let cols: Vec<&str> = line.splitn(3, '\t').collect();
-        if cols.len() != 3 { continue; }
+        if cols.len() != 3 {
+            continue;
+        }
         let container = cols[0].to_string();
         let network = cols[1].split(',').next().unwrap_or("").trim().to_string();
         for entry in cols[2].split(',') {
             let entry = entry.trim();
-            if entry.is_empty() { continue; }
+            if entry.is_empty() {
+                continue;
+            }
             // "0.0.0.0:80->80/tcp" or "[::]:80->80/tcp" or "8080/tcp" (no host bind)
-            let Some((bind, target)) = entry.split_once("->") else { continue };
+            let Some((bind, target)) = entry.split_once("->") else {
+                continue;
+            };
             let host_port = bind.rsplit(':').next().and_then(|p| p.parse::<u16>().ok());
             let (cport_s, proto) = target.split_once('/').unwrap_or((target, "tcp"));
             let container_port = cport_s.parse::<u16>().ok();
@@ -85,22 +105,40 @@ async fn query() -> Option<NetworkMap> {
     // Format: "<id>\t<name>\t<driver>". Skip ipvlan/macvlan/null/host —
     // bridge is what produces br-* and docker0 interfaces.
     let out = Command::new("docker")
-        .args(["network", "ls", "--format", "{{.ID}}\t{{.Name}}\t{{.Driver}}", "--no-trunc"])
-        .output().await.ok()?;
-    if !out.status.success() { return None; }
+        .args([
+            "network",
+            "ls",
+            "--format",
+            "{{.ID}}\t{{.Name}}\t{{.Driver}}",
+            "--no-trunc",
+        ])
+        .output()
+        .await
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
     let s = String::from_utf8_lossy(&out.stdout);
 
     let mut map = NetworkMap::default();
     for line in s.lines() {
         let cols: Vec<&str> = line.split('\t').collect();
-        if cols.len() < 3 { continue; }
+        if cols.len() < 3 {
+            continue;
+        }
         let (id, name, driver) = (cols[0], cols[1], cols[2]);
-        if driver != "bridge" { continue; }
+        if driver != "bridge" {
+            continue;
+        }
         if name == "bridge" {
             map.by_bridge.insert("docker0".into(), name.into());
         } else {
             // Bridge iface uses first 12 chars of network ID after "br-".
-            let short = id.trim_start_matches("sha256:").chars().take(12).collect::<String>();
+            let short = id
+                .trim_start_matches("sha256:")
+                .chars()
+                .take(12)
+                .collect::<String>();
             map.by_bridge.insert(format!("br-{short}"), name.into());
         }
     }

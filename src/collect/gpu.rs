@@ -8,12 +8,18 @@ pub struct Gpu {
 
 pub fn list() -> Vec<Gpu> {
     let mut out = Vec::new();
-    let Ok(rd) = std::fs::read_dir("/sys/bus/pci/devices") else { return out; };
+    let Ok(rd) = std::fs::read_dir("/sys/bus/pci/devices") else {
+        return out;
+    };
     for entry in rd.flatten() {
         let path = entry.path();
-        let Some(class) = read_hex(&path.join("class")) else { continue; };
+        let Some(class) = read_hex(&path.join("class")) else {
+            continue;
+        };
         // PCI base class: 0x03 = display controller (VGA/3D/other).
-        if (class >> 16) != 0x03 { continue; }
+        if (class >> 16) != 0x03 {
+            continue;
+        }
         let vendor_id = read_hex(&path.join("vendor")).unwrap_or(0);
         let device_id = read_hex(&path.join("device")).unwrap_or(0);
         out.push(Gpu {

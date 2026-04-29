@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     pub logo: LogoCfg,
     pub network: NetworkCfg,
@@ -62,17 +63,6 @@ pub struct Show {
     pub virt: bool,
     pub gpu: bool,
     pub shell: bool,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            logo: LogoCfg::default(),
-            network: NetworkCfg::default(),
-            thresholds: Thresholds::default(),
-            show: Show::default(),
-        }
-    }
 }
 
 impl Default for LogoCfg {
@@ -149,8 +139,8 @@ pub fn load(override_path: Option<&Path>) -> Result<Config> {
     }
     let raw = std::fs::read_to_string(&path)
         .with_context(|| format!("read config {}", path.display()))?;
-    let cfg: Config = toml::from_str(&raw)
-        .with_context(|| format!("parse config {}", path.display()))?;
+    let cfg: Config =
+        toml::from_str(&raw).with_context(|| format!("parse config {}", path.display()))?;
     Ok(cfg)
 }
 

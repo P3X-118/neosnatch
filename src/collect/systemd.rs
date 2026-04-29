@@ -15,12 +15,12 @@ trait Manager {
 }
 
 type UnitTuple = (
-    String,                    // name
-    String,                    // description
-    String,                    // load_state
-    String,                    // active_state
-    String,                    // sub_state
-    String,                    // following
+    String, // name
+    String, // description
+    String, // load_state
+    String, // active_state
+    String, // sub_state
+    String, // following
     zbus::zvariant::OwnedObjectPath,
     u32,
     String,

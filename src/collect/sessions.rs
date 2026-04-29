@@ -22,10 +22,16 @@ const UT_HOSTSIZE: usize = 256;
 const USER_PROCESS: i16 = 7;
 
 #[repr(C)]
-struct ExitStatus { _e_termination: i16, _e_exit: i16 }
+struct ExitStatus {
+    _e_termination: i16,
+    _e_exit: i16,
+}
 
 #[repr(C)]
-struct TimeVal { tv_sec: i32, tv_usec: i32 }
+struct TimeVal {
+    tv_sec: i32,
+    tv_usec: i32,
+}
 
 #[repr(C)]
 struct Utmpx {
@@ -53,9 +59,8 @@ fn read_records(path: &str) -> Result<Vec<Utmpx>> {
     let mut i = 0;
     while i + UTMPX_SIZE <= buf.len() {
         let mut rec: Utmpx = unsafe { std::mem::zeroed() };
-        let dst = unsafe {
-            std::slice::from_raw_parts_mut(&mut rec as *mut _ as *mut u8, UTMPX_SIZE)
-        };
+        let dst =
+            unsafe { std::slice::from_raw_parts_mut(&mut rec as *mut _ as *mut u8, UTMPX_SIZE) };
         dst.copy_from_slice(&buf[i..i + UTMPX_SIZE]);
         out.push(rec);
         i += UTMPX_SIZE;
@@ -69,7 +74,9 @@ fn cstr(b: &[u8]) -> String {
 }
 
 fn fmt_time(secs: i32) -> String {
-    Local.timestamp_opt(secs as i64, 0).single()
+    Local
+        .timestamp_opt(secs as i64, 0)
+        .single()
         .map(|dt: DateTime<Local>| dt.format("%Y-%m-%d %H:%M").to_string())
         .unwrap_or_default()
 }
@@ -89,7 +96,8 @@ pub fn active() -> Result<Vec<Session>> {
         Ok(r) => r,
         Err(_) => return Ok(Vec::new()),
     };
-    Ok(recs.iter()
+    Ok(recs
+        .iter()
         .filter(|r| r.ut_type == USER_PROCESS)
         .filter(|r| !cstr(&r.ut_user).is_empty())
         .map(record_to_session)
@@ -104,7 +112,9 @@ pub fn last() -> Result<Option<Session>> {
         Err(_) => return Ok(None),
     };
     let len = f.metadata().map(|m| m.len()).unwrap_or(0);
-    if len < UTMPX_SIZE as u64 { return Ok(None); }
+    if len < UTMPX_SIZE as u64 {
+        return Ok(None);
+    }
 
     let mut offset = (len / UTMPX_SIZE as u64) * UTMPX_SIZE as u64;
     let mut buf = [0u8; UTMPX_SIZE];
@@ -113,9 +123,8 @@ pub fn last() -> Result<Option<Session>> {
         f.seek(SeekFrom::Start(offset))?;
         f.read_exact(&mut buf)?;
         let mut rec: Utmpx = unsafe { std::mem::zeroed() };
-        let dst = unsafe {
-            std::slice::from_raw_parts_mut(&mut rec as *mut _ as *mut u8, UTMPX_SIZE)
-        };
+        let dst =
+            unsafe { std::slice::from_raw_parts_mut(&mut rec as *mut _ as *mut u8, UTMPX_SIZE) };
         dst.copy_from_slice(&buf);
         if rec.ut_type == USER_PROCESS && !cstr(&rec.ut_user).is_empty() {
             return Ok(Some(record_to_session(&rec)));
@@ -134,12 +143,17 @@ pub fn known_hosts(min_count: usize) -> Result<Vec<String>> {
     };
     let mut counts: HashMap<String, usize> = HashMap::new();
     for r in recs.iter() {
-        if r.ut_type != USER_PROCESS { continue; }
+        if r.ut_type != USER_PROCESS {
+            continue;
+        }
         let host = cstr(&r.ut_host);
-        if host.is_empty() { continue; }
+        if host.is_empty() {
+            continue;
+        }
         *counts.entry(host).or_insert(0) += 1;
     }
-    let mut out: Vec<String> = counts.into_iter()
+    let mut out: Vec<String> = counts
+        .into_iter()
         .filter(|(_, n)| *n >= min_count)
         .map(|(h, _)| h)
         .collect();
