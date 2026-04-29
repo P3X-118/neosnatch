@@ -106,7 +106,7 @@ jobs:
         run: |
           case "${{ matrix.format }}" in
             deb)     ART=$(ls target/deb/neosnatch_*_${{ matrix.arch }}.deb | head -n1) ;;
-            rpm)     ART=$(ls target/generate-rpm/*.rpm | head -n1) ;;
+            rpm)     ART=$(find target -name '*.rpm' -path '*/generate-rpm/*' | head -n1) ;;
             tarball) ART=$(ls target/tarball/neosnatch-*-${{ matrix.arch }}-linux-musl.tar.gz | head -n1) ;;
           esac
           echo "path=$ART" >> "$GITHUB_OUTPUT"

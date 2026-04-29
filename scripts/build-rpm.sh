@@ -35,4 +35,4 @@ ARGS+=(--arch "${RPM_ARCH}")
 
 cargo generate-rpm "${ARGS[@]}"
 echo
-ls -lh target/generate-rpm/*.rpm
+find target -name '*.rpm' -path '*/generate-rpm/*' -exec ls -lh {} +

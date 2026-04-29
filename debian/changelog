@@ -1,3 +1,14 @@
+neosnatch (0.7.1-1) unstable; urgency=medium
+
+  * Release pipeline fixes for v0.7.0 multi-distro launch:
+    - Add MIT LICENSE file at repo root (referenced by README and bundled
+      into the static-musl tarball).
+    - build-rpm.sh + release.yml locate the .rpm under
+      target/<triple>/generate-rpm when cross-compiling (cargo-generate-rpm
+      writes there, not target/generate-rpm).
+
+ -- SGC <oneill@sgc.ai>  Wed, 29 Apr 2026 22:30:00 +0000
+
 neosnatch (0.7.0-1) unstable; urgency=medium
 
   * Distribution expansion:
