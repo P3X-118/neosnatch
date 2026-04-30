@@ -356,15 +356,13 @@ fn print_network(f: &Facts, cols: usize) {
     }
 
     if !bridges.is_empty() {
-        const MAX_VISIBLE: usize = 12;
-        let visible = bridges.iter().take(MAX_VISIBLE).collect::<Vec<_>>();
-        let name_w = visible
+        let name_w = bridges
             .iter()
             .map(|b| b.display_name().chars().count())
             .max()
             .unwrap_or(0);
 
-        for (i, b) in visible.iter().enumerate() {
+        for (i, b) in bridges.iter().enumerate() {
             let label = if i == 0 { "docker" } else { "" };
             let ip = b.ip.map(|i| i.to_string()).unwrap_or_default();
             let name = b.display_name();
@@ -378,14 +376,6 @@ fn print_network(f: &Facts, cols: usize) {
                 color::tag(&format!("{:key_w$}", label)),
                 styled,
                 color::meta(&ip)
-            );
-        }
-        if bridges.len() > MAX_VISIBLE {
-            let extra = bridges.len() - MAX_VISIBLE;
-            println!(
-                "  {}  {}",
-                color::tag(&format!("{:key_w$}", "")),
-                color::meta(&format!("+{extra} more"))
             );
         }
     }

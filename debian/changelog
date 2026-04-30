@@ -1,3 +1,11 @@
+neosnatch (0.7.2-1) unstable; urgency=medium
+
+  * render: Network section shows the full docker-bridge list — drop the
+    12-row truncation and the "+N more" footer. Banner may scroll on hosts
+    with many networks; that is acceptable.
+
+ -- SGC <oneill@sgc.ai>  Thu, 30 Apr 2026 11:05:00 +0000
+
 neosnatch (0.7.1-1) unstable; urgency=medium
 
   * Release pipeline fixes for v0.7.0 multi-distro launch:

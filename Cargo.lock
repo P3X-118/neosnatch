@@ -999,7 +999,7 @@ dependencies = [
 
 [[package]]
 name = "neosnatch"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "anyhow",
  "chrono",
